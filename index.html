@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<title>ボディメイク</title>
+<style>
+  :root{
+    --blue:#0a84ff;
+    --p:#ff2d55;   /* protein */
+    --f:#ff9f0a;   /* fat */
+    --c:#30d158;   /* carb */
+    --indigo:#5e5ce6;
+    --orange:#ff9500;
+
+    --ink:#14161c; --ink-soft:rgba(20,22,28,0.40);
+    --muted:#6b7280;
+    --hair:rgba(60,60,67,0.14);
+    --glass-bg:rgba(255,255,255,0.55);
+    --glass-brd:rgba(255,255,255,0.65);
+    --glass-sh:0 10px 30px rgba(31,38,90,0.10), inset 0 1px 0 rgba(255,255,255,0.75);
+    --field:rgba(120,120,128,0.10);
+    --tabbar:rgba(255,255,255,0.30); --tabitem:rgba(255,255,255,0.24);
+    --page1:#e9eefb; --page2:#f3eafb; --page3:#e6fbf1;
+    --blob1:rgba(90,140,255,0.30); --blob2:rgba(255,90,160,0.22); --blob3:rgba(48,209,88,0.22);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#f2f3f7; --ink-soft:rgba(242,243,247,0.48); --muted:#9aa0ad; --hair:rgba(255,255,255,0.12);
+      --glass-bg:rgba(30,32,40,0.55); --glass-brd:rgba(255,255,255,0.10);
+      --glass-sh:0 12px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      --field:rgba(120,120,128,0.24);
+      --tabbar:rgba(24,26,32,0.32); --tabitem:rgba(255,255,255,0.07);
+      --page1:#0b0d13; --page2:#101219; --page3:#0c1016;
+      --blob1:rgba(70,120,255,0.28); --blob2:rgba(255,70,140,0.20); --blob3:rgba(40,190,100,0.18);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#f2f3f7; --ink-soft:rgba(242,243,247,0.48); --muted:#9aa0ad; --hair:rgba(255,255,255,0.12);
+    --glass-bg:rgba(30,32,40,0.55); --glass-brd:rgba(255,255,255,0.10);
+    --glass-sh:0 12px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+    --field:rgba(120,120,128,0.24);
+    --tabbar:rgba(24,26,32,0.32); --tabitem:rgba(255,255,255,0.07);
+    --page1:#0b0d13; --page2:#101219; --page3:#0c1016;
+    --blob1:rgba(70,120,255,0.28); --blob2:rgba(255,70,140,0.20); --blob3:rgba(40,190,100,0.18);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    background:linear-gradient(160deg,var(--page1) 0%,var(--page2) 48%,var(--page3) 100%);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* colored blobs behind the frost */
+  .blobs{position:fixed;inset:0;z-index:-1;overflow:hidden;filter:blur(10px)}
+  .blobs i{position:absolute;border-radius:50%;filter:blur(50px);opacity:.9}
+  .blobs i:nth-child(1){width:60vw;height:60vw;left:-15vw;top:-10vw;background:var(--blob1)}
+  .blobs i:nth-child(2){width:55vw;height:55vw;right:-18vw;top:18vh;background:var(--blob2)}
+  .blobs i:nth-child(3){width:65vw;height:65vw;left:-10vw;bottom:-18vh;background:var(--blob3)}
+
+  .app{max-width:520px;margin:0 auto;padding:0 16px calc(96px + env(safe-area-inset-bottom)) 16px}
+  header.top{padding:calc(14px + env(safe-area-inset-top)) 4px 6px}
+  .large-title{font-size:33px;font-weight:800;letter-spacing:-.5px;margin:2px 0 2px}
+  .glass-txt{color:var(--ink);
+    background:linear-gradient(178deg,var(--ink) 34%,var(--ink-soft) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    text-shadow:0 1px 1px rgba(255,255,255,0.18)}
+  .subtitle{color:var(--muted);font-size:14px;margin:0 0 12px}
+
+  .card{background:var(--glass-bg);border:1px solid var(--glass-brd);border-radius:24px;
+    box-shadow:var(--glass-sh);backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);
+    padding:16px;margin:0 0 14px}
+  .card h2{font-size:15px;font-weight:700;margin:0 0 12px;letter-spacing:-.2px}
+  .row{display:flex;align-items:center;gap:10px}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .muted{color:var(--muted)}
+  .tiny{font-size:12px}
+  .sec{font-size:12px;color:var(--muted);margin:2px 2px 8px;font-weight:600}
+
+  /* fields */
+  input,select{font:inherit;color:var(--ink);background:var(--field);border:none;border-radius:12px;
+    padding:11px 12px;width:100%;outline:none;-webkit-appearance:none;appearance:none}
+  input::placeholder{color:var(--muted)}
+  label.fld{display:block;margin:0 0 10px}
+  label.fld > span{display:block;font-size:12px;color:var(--muted);margin:0 0 5px;font-weight:600}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:none;cursor:pointer;
+    font:inherit;font-weight:700;border-radius:14px;padding:12px 14px;background:var(--blue);color:#fff;width:100%}
+  .btn.sm{padding:9px 12px;border-radius:12px;font-size:13px;width:auto}
+  .btn.ghost{background:var(--field);color:var(--ink)}
+  .btn.tint{background:rgba(10,132,255,0.14);color:var(--blue)}
+  .btn.danger{background:rgba(255,59,48,0.14);color:#ff453a}
+  .link{background:none;border:none;color:var(--blue);font:inherit;font-weight:600;cursor:pointer;padding:6px}
+
+  /* segmented control (iOS) */
+  .seg{display:flex;background:var(--field);border-radius:12px;padding:3px;gap:2px}
+  .seg button{flex:1;border:none;background:none;font:inherit;font-weight:600;font-size:13px;color:var(--muted);
+    padding:8px 4px;border-radius:9px;cursor:pointer}
+  .seg button.on{background:var(--glass-bg);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+  /* stepper */
+  .step{display:inline-flex;align-items:center;gap:0;background:var(--field);border-radius:12px;overflow:hidden}
+  .step button{border:none;background:none;font:inherit;font-weight:700;font-size:18px;color:var(--blue);
+    width:38px;height:38px;cursor:pointer}
+  .step span{min-width:44px;text-align:center;font-weight:700}
+
+  /* list rows */
+  .list{display:flex;flex-direction:column}
+  .item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 2px;border-top:1px solid var(--hair)}
+  .item:first-child{border-top:none}
+  .item .nm{font-weight:600;font-size:15px}
+  .item .sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .del{border:none;background:none;color:#ff453a;font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 4px}
+  .pill{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--field);color:var(--muted)}
+
+  .empty{color:var(--muted);font-size:13px;text-align:center;padding:18px 6px}
+
+  /* macro rings */
+  .hero{display:flex;align-items:center;gap:16px}
+  .rings{position:relative;width:132px;height:132px;flex:none}
+  .rings .kcal{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .rings .kcal b{font-size:24px;font-weight:800;letter-spacing:-.5px;line-height:1}
+  .rings .kcal small{font-size:10px;color:var(--muted);margin-top:2px}
+  .legend{flex:1;display:flex;flex-direction:column;gap:9px}
+  .legrow{display:flex;align-items:center;gap:8px;font-size:13px}
+  .dot{width:9px;height:9px;border-radius:3px;flex:none}
+  .legrow b{margin-left:auto;font-weight:700}
+  .legrow .rest{color:var(--muted);font-weight:600;min-width:56px;text-align:right}
+
+  /* bars */
+  .bar{height:9px;border-radius:999px;background:var(--field);overflow:hidden;margin-top:6px}
+  .bar > i{display:block;height:100%;border-radius:999px}
+
+  .waterrow{display:flex;align-items:center;gap:12px}
+  .watergauge{flex:1;height:14px;border-radius:999px;background:var(--field);overflow:hidden}
+  .watergauge > i{display:block;height:100%;background:linear-gradient(90deg,#64d2ff,#0a84ff)}
+
+  .bignum{font-size:40px;font-weight:800;letter-spacing:-1px;line-height:1;
+    background:linear-gradient(178deg,var(--ink) 34%,var(--ink-soft) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:var(--ink)}
+  .unit{font-size:16px;color:var(--muted);font-weight:600}
+  .delta{font-size:13px;font-weight:700}
+  .up{color:#ff453a}.down{color:#30d158}
+
+  svg.chart{width:100%;display:block;overflow:visible}
+  .chart text{fill:var(--muted);font-size:9px}
+  .datenav{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}
+  .datenav .d{font-weight:700;font-size:15px}
+  .arrow{border:none;background:var(--field);color:var(--ink);width:34px;height:34px;border-radius:10px;font-size:16px;cursor:pointer}
+
+  /* bottom tab bar */
+  .tabbar{position:fixed;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:50;
+    padding:7px;border-radius:30px;background:var(--tabbar);border:1px solid var(--glass-brd);
+    box-shadow:0 12px 34px rgba(31,38,90,0.16), inset 0 1px 0 rgba(255,255,255,0.5);
+    backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%)}
+  .tabbar .inner{max-width:520px;margin:0 auto;display:flex;gap:7px}
+  .tabbar button{flex:1;border:1px solid var(--glass-brd);background:var(--tabitem);
+    font:inherit;font-size:12px;font-weight:600;color:var(--muted);padding:11px 4px;border-radius:24px;cursor:pointer;
+    backdrop-filter:blur(8px) saturate(160%);-webkit-backdrop-filter:blur(8px) saturate(160%);
+    transition:background .18s,color .18s,border-color .18s,box-shadow .18s}
+  .tabbar button.on{color:var(--blue);font-weight:800;background:rgba(10,132,255,0.16);
+    border-color:rgba(10,132,255,0.40);box-shadow:0 4px 14px rgba(10,132,255,0.20), inset 0 1px 0 rgba(255,255,255,0.55)}
+
+  /* modal + toast */
+  .overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;padding:24px}
+  .modal{width:100%;max-width:340px;background:var(--glass-bg);border:1px solid var(--glass-brd);border-radius:22px;
+    box-shadow:var(--glass-sh);backdrop-filter:blur(30px) saturate(160%);-webkit-backdrop-filter:blur(30px) saturate(160%);padding:20px;text-align:center}
+  .modal h3{margin:0 0 6px;font-size:17px}
+  .modal p{margin:0 0 16px;color:var(--muted);font-size:14px}
+  .modal .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:rgba(20,22,28,.92);color:#fff;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:opacity .2s}
+  .toast.show{opacity:1}
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<div class="blobs"><i></i><i></i><i></i></div>
+
+<div class="app">
+  <header class="top">
+    <div class="large-title glass-txt" id="title">食事</div>
+    <div class="subtitle" id="subtitle"></div>
+  </header>
+  <main id="view"></main>
+</div>
+
+<nav class="tabbar">
+  <div class="inner">
+    <button data-tab="food" class="on">食事</button>
+    <button data-tab="weight">体重</button>
+    <button data-tab="train">運動</button>
+    <button data-tab="settings">設定</button>
+  </div>
+</nav>
+
+<div id="toast" class="toast"></div>
+
+<script>
+"use strict";
+
+/* ============ storage ============ */
+const KEY="bodymakeApp:v1";
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const num=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const round=n=>Math.round(n);
+
+function defState(){
+  return {
+    v:1,
+    profile:{name:"", height:null},
+    targets:{kcal:2000, p:130, f:50, c:200, weightGoal:null},
+    foods:[
+      {id:uid(),name:"鶏むね肉(皮なし)",unit:"100g",kcal:108,p:22,f:1.5,c:0},
+      {id:uid(),name:"白米",unit:"100g",kcal:156,p:2.5,f:.3,c:37},
+      {id:uid(),name:"卵",unit:"1個",kcal:76,p:6.2,f:5.2,c:.2},
+      {id:uid(),name:"プロテイン",unit:"1杯",kcal:120,p:24,f:1.5,c:2},
+    ],
+    meals:{},
+    water:{},
+    weights:[],
+    exercises:[
+      {id:uid(),name:"ベンチプレス",part:"胸"},
+      {id:uid(),name:"デッドリフト",part:"背中"},
+      {id:uid(),name:"スクワット",part:"脚"},
+    ],
+    workouts:{},
+    theme:"auto",
+  };
+}
+function normalize(d){
+  const base=defState();
+  if(!d||typeof d!=="object") return base;
+  const s={...base,...d};
+  s.profile={...base.profile,...(d.profile||{})};
+  s.targets={...base.targets,...(d.targets||{})};
+  s.foods=Array.isArray(d.foods)?d.foods:base.foods;
+  s.exercises=Array.isArray(d.exercises)?d.exercises:base.exercises;
+  s.weights=Array.isArray(d.weights)?d.weights:[];
+  s.meals=d.meals&&typeof d.meals==="object"?d.meals:{};
+  s.water=d.water&&typeof d.water==="object"?d.water:{};
+  s.workouts=d.workouts&&typeof d.workouts==="object"?d.workouts:{};
+  s.theme=["auto","light","dark"].includes(d.theme)?d.theme:"auto";
+  return s;
+}
+function applyTheme(){const t=(S&&S.theme)||"auto";const r=document.documentElement;
+  if(t==="auto")r.removeAttribute("data-theme");else r.setAttribute("data-theme",t);}
+let S;
+try{S=normalize(JSON.parse(localStorage.getItem(KEY)));}catch(e){S=defState();}
+applyTheme();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast("保存に失敗した");}}
+function persist(){save();render();}
+
+/* ============ dates ============ */
+function ymd(dt){const y=dt.getFullYear();const m=String(dt.getMonth()+1).padStart(2,"0");const d=String(dt.getDate()).padStart(2,"0");return `${y}-${m}-${d}`;}
+function today(){return ymd(new Date());}
+function parseYmd(s){const[a,b,c]=s.split("-").map(Number);return new Date(a,b-1,c);}
+function addDays(s,n){const dt=parseYmd(s);dt.setDate(dt.getDate()+n);return ymd(dt);}
+function labelDate(s){const dt=parseYmd(s);const w=["日","月","火","水","木","金","土"][dt.getDay()];
+  return `${dt.getMonth()+1}/${dt.getDate()}（${w}）`;}
+
+/* ============ ui state ============ */
+let TAB="food";
+let selDate=today();            // 食事タブの対象日
+let foodMode="manual";          // manual | mylist
+let mealTime="朝";
+let trendRange=30;              // 推移の表示日数 7(週)/30(月)
+
+/* ============ helpers ============ */
+const $=s=>document.querySelector(s);
+function h(tag,attrs,...kids){
+  const e=document.createElement(tag);
+  if(attrs)for(const k in attrs){
+    if(k==="class")e.className=attrs[k];
+    else if(k==="html")e.innerHTML=attrs[k];
+    else if(k.startsWith("on")&&typeof attrs[k]==="function")e.addEventListener(k.slice(2),attrs[k]);
+    else if(attrs[k]!=null)e.setAttribute(k,attrs[k]);
+  }
+  for(const kid of kids.flat()){if(kid==null||kid===false)continue;e.appendChild((typeof kid==="string"||typeof kid==="number")?document.createTextNode(String(kid)):kid);}
+  return e;
+}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("show");clearTimeout(toast._t);toast._t=setTimeout(()=>t.classList.remove("show"),1600);}
+function confirmModal(title,msg,okLabel="削除",danger=true){
+  return new Promise(res=>{
+    const ok=h("button",{class:"btn "+(danger?"danger":""),onclick:()=>{close();res(true);}},okLabel);
+    const cancel=h("button",{class:"btn ghost",onclick:()=>{close();res(false);}},"キャンセル");
+    const ov=h("div",{class:"overlay",onclick:e=>{if(e.target===ov){close();res(false);}}},
+      h("div",{class:"modal"},h("h3",null,title),msg?h("p",null,msg):null,h("div",{class:"row2"},cancel,ok)));
+    function close(){ov.remove();}
+    document.body.appendChild(ov);
+  });
+}
+
+/* ============ macro aggregation ============ */
+function dayMeals(date){return S.meals[date]||[];}
+function totalsFor(date){
+  return dayMeals(date).reduce((a,m)=>({kcal:a.kcal+num(m.kcal),p:a.p+num(m.p),f:a.f+num(m.f),c:a.c+num(m.c)}),{kcal:0,p:0,f:0,c:0});
+}
+
+/* ============ charts (hand-built SVG) ============ */
+function barChart(vals,{w=460,hgt=120,color="var(--blue)",target=null,labels=null,fmt=v=>String(round(v))}={}){
+  const pad={l:6,r:6,t:10,b:16};const iw=w-pad.l-pad.r;const ih=hgt-pad.t-pad.b;
+  const max=Math.max(1,...vals,target||0);const n=vals.length;const bw=iw/n*0.62;const gap=iw/n;
+  let bars="",lbls="";
+  vals.forEach((v,i)=>{
+    const bh=Math.max(v>0?2:0,ih*(v/max));const x=pad.l+gap*i+(gap-bw)/2;const y=pad.t+ih-bh;
+    bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="${color}" opacity="0.9"/>`;
+    if(labels&&(n<=8||i%Math.ceil(n/7)===0))lbls+=`<text x="${(x+bw/2).toFixed(1)}" y="${hgt-4}" text-anchor="middle">${labels[i]}</text>`;
+  });
+  let tl="";
+  if(target){const ty=pad.t+ih-ih*(Math.min(target,max)/max);
+    tl=`<line x1="${pad.l}" y1="${ty.toFixed(1)}" x2="${w-pad.r}" y2="${ty.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4" opacity=".6"/>
+        <text x="${w-pad.r}" y="${(ty-3).toFixed(1)}" text-anchor="end">目標 ${fmt(target)}</text>`;}
+  return `<svg class="chart" viewBox="0 0 ${w} ${hgt}">${tl}${bars}${lbls}</svg>`;
+}
+function lineChart(pts,{w=460,hgt=140,color="var(--indigo)",target=null,labels=null,fmt=v=>String(v)}={}){
+  // pts: [{v}] ; null v = missing
+  const pad={l:8,r:10,t:12,b:18};const iw=w-pad.l-pad.r;const ih=hgt-pad.t-pad.b;
+  const nums=pts.map(p=>p.v).filter(v=>v!=null);
+  if(nums.length===0)return `<svg class="chart" viewBox="0 0 ${w} ${hgt}"></svg>`;
+  let mn=Math.min(...nums,target!=null?target:Infinity);
+  let mx=Math.max(...nums,target!=null?target:-Infinity);
+  if(mn===mx){mn-=1;mx+=1;}const rng=mx-mn;mn-=rng*0.12;mx+=rng*0.12;
+  const n=pts.length;const X=i=>pad.l+(n<=1?iw/2:iw*i/(n-1));const Y=v=>pad.t+ih-ih*((v-mn)/(mx-mn));
+  let d="",dots="",started=false;
+  pts.forEach((p,i)=>{if(p.v==null)return;const x=X(i),y=Y(p.v);d+=(started?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" ";started=true;
+    dots+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="${color}"/>`;});
+  let tl="";
+  if(target!=null){const ty=Y(target);tl=`<line x1="${pad.l}" y1="${ty.toFixed(1)}" x2="${w-pad.r}" y2="${ty.toFixed(1)}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4" opacity=".6"/>
+    <text x="${w-pad.r}" y="${(ty-3).toFixed(1)}" text-anchor="end">目標 ${fmt(target)}</text>`;}
+  let lbls="";
+  if(labels)pts.forEach((p,i)=>{if(n<=10||i%Math.ceil(n/6)===0)lbls+=`<text x="${X(i).toFixed(1)}" y="${hgt-4}" text-anchor="middle">${labels[i]}</text>`;});
+  return `<svg class="chart" viewBox="0 0 ${w} ${hgt}">${tl}<path d="${d}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}${lbls}</svg>`;
+}
+function ringsSVG(P,F,C){
+  const R=[54,41,28],SW=11;const cx=66,cy=66;
+  const cols=[getVar("--p"),getVar("--f"),getVar("--c")];
+  const pct=[P,F,C].map(x=>Math.max(0,Math.min(1,x)));
+  let out="";
+  R.forEach((r,i)=>{
+    const circ=2*Math.PI*r;const on=circ*pct[i];
+    out+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--field)" stroke-width="${SW}"/>`;
+    out+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${cols[i]}" stroke-width="${SW}" stroke-linecap="round"
+      stroke-dasharray="${on.toFixed(1)} ${(circ-on).toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+  });
+  return `<svg viewBox="0 0 132 132" width="132" height="132">${out}</svg>`;
+}
+function getVar(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()||"#888";}
+
+/* ============ FOOD tab ============ */
+function renderFood(){
+  const view=$("#view");view.innerHTML="";
+  const t=S.targets;const tot=totalsFor(selDate);
+  const rest={kcal:round(t.kcal-tot.kcal),p:round(t.p-tot.p),f:round(t.f-tot.f),c:round(t.c-tot.c)};
+
+  // date nav
+  view.appendChild(h("div",{class:"datenav"},
+    h("button",{class:"arrow",onclick:()=>{selDate=addDays(selDate,-1);render();}},"‹"),
+    h("div",{class:"d"},labelDate(selDate)),
+    h("button",{class:"arrow",onclick:()=>{if(selDate<today()){selDate=addDays(selDate,1);render();}}},"›"),
+  ));
+
+  // hero rings card
+  const legend=h("div",{class:"legend"},
+    legRow("--p","Protein",tot.p,t.p,rest.p),
+    legRow("--f","Fat",tot.f,t.f,rest.f),
+    legRow("--c","Carbs",tot.c,t.c,rest.c),
+  );
+  const rings=h("div",{class:"rings"});
+  rings.innerHTML=ringsSVG(t.p?tot.p/t.p:0,t.f?tot.f/t.f:0,t.c?tot.c/t.c:0);
+  view.appendChild(h("div",{class:"card"},
+    h("div",{class:"hero"},rings,legend),
+    h("div",{style:"text-align:center;margin-top:14px;font-weight:800;font-size:20px;letter-spacing:-.4px;color:"+(tot.kcal>t.kcal?"#ff453a":"var(--ink)")},
+      `${round(tot.kcal)} / ${t.kcal} kcal`),
+  ));
+
+  // water
+  const wkey=selDate;const ml=S.water[wkey]||0;const goal=2000;
+  const setWater=v=>{S.water[wkey]=Math.max(0,v);persist();};
+  view.appendChild(h("div",{class:"card"},
+    h("div",{class:"between"},h("h2",{style:"margin:0"},"水分"),
+      h("div",{class:"row",style:"gap:8px"},
+        h("div",{class:"tiny muted"},`${ml} / ${goal} ml`),
+        h("button",{class:"btn tint sm",onclick:()=>setWater(ml+250)},"+250"))),
+    h("div",{class:"waterrow",style:"margin-top:12px"},
+      h("button",{class:"btn ghost sm",onclick:()=>setWater(ml-50)},"−50"),
+      h("div",{class:"watergauge"},h("i",{style:`width:${Math.min(100,ml/goal*100)}%`})),
+      h("button",{class:"btn tint sm",onclick:()=>setWater(ml+50)},"+50"),
+    ),
+  ));
+
+  // add panel
+  const modeSeg=h("div",{class:"seg"},
+    segBtn("手入力",foodMode==="manual",()=>{foodMode="manual";render();}),
+    segBtn("マイ食品",foodMode==="mylist",()=>{foodMode="mylist";render();}),
+  );
+  const timeSeg=h("div",{class:"seg",style:"margin-top:10px"},
+    ...["朝","昼","夕","間食"].map(tm=>segBtn(tm,mealTime===tm,()=>{mealTime=tm;render();})),
+  );
+  const body=foodMode==="manual"?manualForm():myListPanel();
+  view.appendChild(h("div",{class:"card"},h("h2",null,"記録を追加"),modeSeg,timeSeg,h("div",{style:"margin-top:12px"},body)));
+
+  // logged list grouped by time
+  const items=dayMeals(selDate);
+  const listCard=h("div",{class:"card"},h("h2",null,"Today"));
+  if(items.length===0){listCard.appendChild(h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。"));}
+  else{
+    ["朝","昼","夕","間食"].forEach(tm=>{
+      const g=items.filter(m=>m.time===tm);if(g.length===0)return;
+      listCard.appendChild(h("div",{class:"sec"},tm+`　${round(g.reduce((a,m)=>a+num(m.kcal),0))} kcal`));
+      const list=h("div",{class:"list"});
+      g.forEach(m=>list.appendChild(h("div",{class:"item"},
+        h("div",null,h("div",{class:"nm"},m.name),h("div",{class:"sub"},`${round(m.kcal)}kcal ・ P${round(m.p)} F${round(m.f)} C${round(m.c)}`)),
+        h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",m.name)){S.meals[selDate]=dayMeals(selDate).filter(x=>x.id!==m.id);persist();}}},"削除"),
+      )));
+      listCard.appendChild(list);
+    });
+  }
+  view.appendChild(listCard);
+
+  // trend (週/月)
+  const days=[];for(let i=trendRange-1;i>=0;i--)days.push(addDays(today(),-i));
+  const kc=days.map(d=>totalsFor(d).kcal);
+  const pv=days.map(d=>({v:totalsFor(d).p}));
+  const labels=days.map(d=>{const dt=parseYmd(d);return `${dt.getMonth()+1}/${dt.getDate()}`;});
+  const trend=h("div",{class:"card"},trendHead(),
+    h("div",{class:"sec"},"カロリー"),h("div",{html:barChart(kc,{color:"var(--blue)",target:t.kcal,labels})}),
+    h("div",{class:"sec",style:"margin-top:8px"},"タンパク質 P"),h("div",{html:lineChart(pv,{color:"var(--p)",target:t.p,labels})}),
+  );
+  view.appendChild(trend);
+}
+function legRow(cssVar,label,cur,tgt,rest){
+  const pct=tgt?Math.min(100,cur/tgt*100):0;
+  return h("div",null,
+    h("div",{class:"legrow"},h("span",{class:"dot",style:`background:var(${cssVar})`}),h("span",null,label),
+      h("b",null,`${round(cur)}`),h("span",{class:"rest tiny"},`/${round(tgt)}g`)),
+    h("div",{class:"bar"},h("i",{style:`width:${pct}%;background:var(${cssVar})`})),
+  );
+}
+function segBtn(txt,on,fn){return h("button",{class:on?"on":"",onclick:fn},txt);}
+function rangeSeg(){return h("div",{class:"seg",style:"width:112px;flex:none"},
+  segBtn("週",trendRange===7,()=>{trendRange=7;render();}),
+  segBtn("月",trendRange===30,()=>{trendRange=30;render();}));}
+function trendHead(){return h("div",{class:"between",style:"margin-bottom:12px"},
+  h("h2",{style:"margin:0"},"推移"),rangeSeg());}
+
+function manualForm(){
+  const f={name:"",p:"",f:"",c:""};
+  const kcalOut=h("b",null,"0");
+  const calc=()=>{kcalOut.textContent=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);};
+  const inN=h("input",{placeholder:"メニュー名",oninput:e=>f.name=e.target.value});
+  const grid=h("div",{class:"grid3",style:"margin-top:10px"},
+    numFld("P",'g',v=>{f.p=v;calc();}),numFld("F",'g',v=>{f.f=v;calc();}),numFld("C",'g',v=>{f.c=v;calc();}));
+  const kcalRow=h("div",{class:"between",style:"margin-top:10px"},
+    h("span",{class:"tiny muted"},"カロリー（自動計算）"),
+    h("div",{style:"font-weight:800;font-size:16px"},kcalOut," kcal"));
+  const add=h("button",{class:"btn",style:"margin-top:12px",onclick:()=>{
+    if(!f.name.trim()){toast("メニュー名を入れてね");return;}
+    const kcal=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);
+    addMeal({name:f.name.trim(),kcal,p:num(f.p),f:num(f.f),c:num(f.c)});
+  }},"追加する");
+  return h("div",null,inN,grid,kcalRow,add);
+}
+function numFld(label,unit,fn){
+  return h("label",{class:"fld",style:"margin:0"},h("span",null,label),
+    h("input",{type:"text",inputmode:"decimal",placeholder:unit,oninput:e=>fn(e.target.value)}));
+}
+function myListPanel(){
+  const wrap=h("div",null);
+  if(S.foods.length===0)wrap.appendChild(h("div",{class:"empty"},"マイ食品がまだないよ。設定タブで追加できる。"));
+  const list=h("div",{class:"list"});
+  S.foods.forEach(fd=>{
+    let qty=1;const qspan=h("span",null,"1");
+    const stepper=h("div",{class:"step"},
+      h("button",{onclick:()=>{qty=Math.max(0.5,+(qty-0.5).toFixed(1));qspan.textContent=qty;}},"−"),
+      qspan,
+      h("button",{onclick:()=>{qty=+(qty+0.5).toFixed(1);qspan.textContent=qty;}},"＋"),
+    );
+    list.appendChild(h("div",{class:"item"},
+      h("div",null,h("div",{class:"nm"},fd.name),h("div",{class:"sub"},`${fd.unit} ・ ${round(fd.kcal)}kcal P${fd.p} F${fd.f} C${fd.c}`)),
+      h("div",{class:"row"},stepper,
+        h("button",{class:"btn tint sm",onclick:()=>{
+          addMeal({name:`${fd.name}${qty!==1?" ×"+qty:""}`,kcal:fd.kcal*qty,p:fd.p*qty,f:fd.f*qty,c:fd.c*qty});
+        }},"追加")),
+    ));
+  });
+  wrap.appendChild(list);
+  return wrap;
+}
+function addMeal(m){
+  if(!S.meals[selDate])S.meals[selDate]=[];
+  S.meals[selDate].push({id:uid(),time:mealTime,name:m.name,kcal:round(m.kcal),p:+m.p.toFixed(1),f:+m.f.toFixed(1),c:+m.c.toFixed(1)});
+  persist();toast("追加した");
+}
+
+/* ============ WEIGHT tab ============ */
+function renderWeight(){
+  const view=$("#view");view.innerHTML="";
+  const arr=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  const latest=arr[arr.length-1];
+  const goal=S.targets.weightGoal;
+
+  // hero
+  const heroBits=[h("div",{class:"row",style:"align-items:baseline;gap:6px"},
+      h("div",{class:"bignum"},latest?latest.kg:"—"),h("div",{class:"unit"},"kg"))];
+  if(latest&&arr.length>1){const prev=arr[arr.length-2];const dv=+(latest.kg-prev.kg).toFixed(1);
+    heroBits.push(h("div",{class:"delta "+(dv>0?"up":dv<0?"down":""),style:"margin-top:4px"},
+      `${dv>0?"▲":dv<0?"▼":"±"} ${Math.abs(dv)}kg（前回比）`));}
+  if(goal!=null&&latest){const gd=+(latest.kg-goal).toFixed(1);
+    heroBits.push(h("div",{class:"tiny muted",style:"margin-top:6px"},`目標 ${goal}kg まで ${Math.abs(gd)}kg ${gd>0?"減":"超過"}`));}
+  view.appendChild(h("div",{class:"card"},h("h2",null,"現在の体重"),...heroBits));
+
+  // add
+  const f={date:today(),kg:"",fat:""};
+  const dateI=h("input",{type:"date",value:f.date,onchange:e=>f.date=e.target.value});
+  view.appendChild(h("div",{class:"card"},h("h2",null,"記録を追加"),
+    h("label",{class:"fld"},h("span",null,"日付"),dateI),
+    h("div",{class:"grid2"},
+      h("label",{class:"fld",style:"margin:0"},h("span",null,"体重 kg"),h("input",{type:"text",inputmode:"decimal",placeholder:"65.0",oninput:e=>f.kg=e.target.value})),
+      h("label",{class:"fld",style:"margin:0"},h("span",null,"体脂肪率 %（任意）"),h("input",{type:"text",inputmode:"decimal",placeholder:"18.0",oninput:e=>f.fat=e.target.value})),
+    ),
+    h("button",{class:"btn",style:"margin-top:4px",onclick:()=>{
+      if(!f.kg){toast("体重を入れてね");return;}
+      const kg=+num(f.kg).toFixed(1);const fat=f.fat?+num(f.fat).toFixed(1):null;
+      const ex=S.weights.find(w=>w.date===f.date);
+      if(ex){ex.kg=kg;ex.fat=fat;}else S.weights.push({id:uid(),date:f.date,kg,fat});
+      persist();toast("記録した");
+    }},"記録する"),
+  ));
+
+  // chart (週/月)
+  const cut=addDays(today(),-(trendRange-1));
+  const rec=arr.filter(w=>w.date>=cut);
+  const chartInner=rec.length>=1
+    ? h("div",{html:lineChart(rec.map(w=>({v:w.kg})),{color:"var(--indigo)",target:goal,labels:rec.map(w=>{const dt=parseYmd(w.date);return `${dt.getMonth()+1}/${dt.getDate()}`;}),fmt:v=>v+"kg"})})
+    : h("div",{class:"empty"},"この期間の記録がないよ。");
+  view.appendChild(h("div",{class:"card"},trendHead(),chartInner));
+
+  // history
+  const hist=h("div",{class:"card"},h("h2",null,"履歴"));
+  if(arr.length===0)hist.appendChild(h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。"));
+  else{const list=h("div",{class:"list"});[...arr].reverse().forEach(w=>{const dt=parseYmd(w.date);
+    list.appendChild(h("div",{class:"item"},
+      h("div",null,h("div",{class:"nm"},`${w.kg} kg`),h("div",{class:"sub"},`${dt.getMonth()+1}/${dt.getDate()}`+(w.fat!=null?` ・ 体脂肪 ${w.fat}%`:""))),
+      h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",`${w.kg}kg の記録`)){S.weights=S.weights.filter(x=>x.id!==w.id);persist();}}},"削除"),
+    ));});hist.appendChild(list);}
+  view.appendChild(hist);
+}
+
+/* ============ TRAIN tab ============ */
+const PARTS=["胸","背中","脚","肩","腕","腹"];
+let selEx="";            // 選択中の筋トレ種目名
+let strNew=false;        // 新種目入力モード
+let trainMode="strength";// strength | cardio
+let cardioName="ランニング";
+const isStr=e=>e.kind!=="cardio";
+function renderTrain(){
+  const view=$("#view");view.innerHTML="";
+  const dstr=today();
+  const wk=S.workouts[dstr]||[];
+  const strWk=wk.filter(isStr);
+  const carWk=wk.filter(e=>e.kind==="cardio");
+  const vol=strWk.reduce((a,e)=>a+num(e.sets)*num(e.reps)*num(e.weight),0);
+  const cmin=carWk.reduce((a,e)=>a+num(e.min),0);
+  const ckm=carWk.reduce((a,e)=>a+num(e.km),0);
+
+  // hero
+  view.appendChild(h("div",{class:"card"},h("h2",null,"Today"),
+    h("div",{class:"row",style:"align-items:baseline;gap:6px"},h("div",{class:"bignum"},round(vol).toLocaleString()),h("div",{class:"unit"},"kg・筋トレ総量")),
+    h("div",{class:"tiny muted",style:"margin-top:6px"},`有酸素 ${round(cmin)}分${ckm?` ・ ${(+ckm.toFixed(1))}km`:""}`),
+  ));
+
+  // record card
+  const seg=h("div",{class:"seg"},
+    segBtn("筋トレ",trainMode==="strength",()=>{trainMode="strength";render();}),
+    segBtn("有酸素",trainMode==="cardio",()=>{trainMode="cardio";render();}),
+  );
+  const form=trainMode==="strength"?strengthForm(dstr):cardioForm(dstr);
+  view.appendChild(h("div",{class:"card"},h("h2",null,"記録する"),seg,h("div",{style:"margin-top:12px"},form)));
+
+  // today list
+  const listCard=h("div",{class:"card"},h("h2",null,"Today's log"));
+  if(wk.length===0)listCard.appendChild(h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。"));
+  else{
+    if(strWk.length){listCard.appendChild(h("div",{class:"sec"},"筋トレ"));
+      const l=h("div",{class:"list"});strWk.forEach(e=>l.appendChild(strRow(e,dstr,wk)));listCard.appendChild(l);}
+    if(carWk.length){listCard.appendChild(h("div",{class:"sec",style:"margin-top:8px"},"有酸素"));
+      const l=h("div",{class:"list"});carWk.forEach(e=>l.appendChild(carRow(e,dstr,wk)));listCard.appendChild(l);}
+  }
+  view.appendChild(listCard);
+
+  // trends (週/月)
+  const days=[];for(let i=trendRange-1;i>=0;i--)days.push(addDays(today(),-i));
+  const vols=days.map(d=>(S.workouts[d]||[]).filter(isStr).reduce((a,e)=>a+num(e.sets)*num(e.reps)*num(e.weight),0));
+  const cmins=days.map(d=>(S.workouts[d]||[]).filter(e=>e.kind==="cardio").reduce((a,e)=>a+num(e.min),0));
+  const labels=days.map(d=>{const dt=parseYmd(d);return `${dt.getMonth()+1}/${dt.getDate()}`;});
+  view.appendChild(h("div",{class:"card"},trendHead(),
+    h("div",{class:"sec"},"筋トレ 総量(kg)"),h("div",{html:barChart(vols,{color:"var(--orange)",labels,fmt:v=>round(v).toLocaleString()})}),
+    h("div",{class:"sec",style:"margin-top:8px"},"有酸素 時間(分)"),h("div",{html:barChart(cmins,{color:"#64d2ff",labels})}),
+  ));
+}
+function strengthForm(dstr){
+  const lib=S.exercises;
+  if(!strNew&&!selEx&&lib[0])selEx=lib[0].name;
+  const f={sets:"",reps:"",weight:"",newName:"",newPart:"胸"};
+  const wrap=h("div",null);
+  const exSel=h("select",{onchange:e=>{
+    if(e.target.value==="__new"){strNew=true;render();return;}
+    selEx=e.target.value;strNew=false;render();
+  }},
+    ...lib.map(ex=>h("option",{value:ex.name,selected:(!strNew&&ex.name===selEx)?"":null},`${ex.name}（${ex.part}）`)),
+    h("option",{value:"__new",selected:strNew?"":null},"＋ 新しい種目を入力"));
+  wrap.appendChild(h("label",{class:"fld"},h("span",null,"種目"),exSel));
+  if(strNew){
+    wrap.appendChild(h("label",{class:"fld"},h("span",null,"種目名"),h("input",{placeholder:"例）インクラインダンベルプレス",oninput:e=>f.newName=e.target.value})));
+    const psel=h("select",{onchange:e=>f.newPart=e.target.value},...PARTS.map(p=>h("option",{value:p,selected:p===f.newPart?"":null},p)));
+    wrap.appendChild(h("label",{class:"fld"},h("span",null,"部位"),psel));
+  }
+  wrap.appendChild(h("div",{class:"grid4"},numFld("セット","回",v=>f.sets=v),numFld("レップ","回",v=>f.reps=v),numFld("重量","kg",v=>f.weight=v),h("div",null)));
+  wrap.appendChild(h("button",{class:"btn",style:"margin-top:12px",onclick:()=>{
+    let name,part;
+    if(strNew){name=f.newName.trim();part=f.newPart;if(!name){toast("種目名を入れてね");return;}
+      if(!lib.some(x=>x.name===name))S.exercises.push({id:uid(),name,part});selEx=name;strNew=false;}
+    else{const ex=lib.find(x=>x.name===selEx);if(!ex){toast("種目を選んでね");return;}name=ex.name;part=ex.part;}
+    if(!f.sets||!f.reps){toast("セット・レップを入れてね");return;}
+    if(!S.workouts[dstr])S.workouts[dstr]=[];
+    S.workouts[dstr].push({id:uid(),kind:"strength",name,part,sets:num(f.sets),reps:num(f.reps),weight:num(f.weight)});
+    persist();toast("記録した");
+  }},"記録する"));
+  return wrap;
+}
+function cardioForm(dstr){
+  const f={min:"",km:""};
+  const wrap=h("div",null);
+  wrap.appendChild(h("div",{class:"seg"},
+    segBtn("ランニング",cardioName==="ランニング",()=>{cardioName="ランニング";render();}),
+    segBtn("ウォーキング",cardioName==="ウォーキング",()=>{cardioName="ウォーキング";render();}),
+  ));
+  wrap.appendChild(h("div",{class:"grid2",style:"margin-top:12px"},
+    h("label",{class:"fld",style:"margin:0"},h("span",null,"時間 分"),h("input",{type:"text",inputmode:"decimal",placeholder:"30",oninput:e=>f.min=e.target.value})),
+    h("label",{class:"fld",style:"margin:0"},h("span",null,"距離 km（任意）"),h("input",{type:"text",inputmode:"decimal",placeholder:"3.0",oninput:e=>f.km=e.target.value})),
+  ));
+  wrap.appendChild(h("button",{class:"btn",style:"margin-top:4px",onclick:()=>{
+    if(!f.min&&!f.km){toast("時間か距離を入れてね");return;}
+    if(!S.workouts[dstr])S.workouts[dstr]=[];
+    S.workouts[dstr].push({id:uid(),kind:"cardio",name:cardioName,min:num(f.min),km:num(f.km)});
+    persist();toast("記録した");
+  }},"記録する"));
+  return wrap;
+}
+function strRow(e,dstr,wk){
+  return h("div",{class:"item"},
+    h("div",null,h("div",{class:"nm"},e.name),h("div",{class:"sub"},`${e.sets}セット × ${e.reps}回 × ${e.weight}kg　=　${round(e.sets*e.reps*e.weight)}kg`)),
+    h("div",{class:"row"},h("span",{class:"pill"},e.part||""),
+      h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",e.name)){S.workouts[dstr]=wk.filter(x=>x.id!==e.id);persist();}}},"削除")),
+  );
+}
+function carRow(e,dstr,wk){
+  const sub=[e.min?`${round(e.min)}分`:null,e.km?`${(+e.km.toFixed(1))}km`:null].filter(Boolean).join(" ・ ")||"—";
+  return h("div",{class:"item"},
+    h("div",null,h("div",{class:"nm"},e.name),h("div",{class:"sub"},sub)),
+    h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",e.name)){S.workouts[dstr]=wk.filter(x=>x.id!==e.id);persist();}}},"削除"),
+  );
+}
+
+/* ============ SETTINGS tab ============ */
+function renderSettings(){
+  const view=$("#view");view.innerHTML="";
+  const t={...S.targets};const p={...S.profile};
+
+  // theme
+  const setTheme=v=>{S.theme=v;save();applyTheme();render();};
+  view.appendChild(h("div",{class:"card"},
+    h("div",{class:"between"},h("h2",{style:"margin:0"},"表示テーマ"),
+      h("div",{class:"seg",style:"width:210px;flex:none"},
+        segBtn("自動",S.theme==="auto",()=>setTheme("auto")),
+        segBtn("ライト",S.theme==="light",()=>setTheme("light")),
+        segBtn("ダーク",S.theme==="dark",()=>setTheme("dark")))),
+    h("div",{class:"tiny muted",style:"margin-top:8px"},"「自動」は端末の設定に合わせるよ。"),
+  ));
+
+  // targets
+  view.appendChild(h("div",{class:"card"},h("h2",null,"目標（1日）"),
+    h("div",{class:"grid4"},
+      tNum("kcal",t.kcal,v=>t.kcal=v),tNum("P g",t.p,v=>t.p=v),tNum("F g",t.f,v=>t.f=v),tNum("C g",t.c,v=>t.c=v)),
+    h("label",{class:"fld",style:"margin-top:10px"},h("span",null,"目標体重 kg（任意）"),
+      h("input",{type:"text",inputmode:"decimal",value:t.weightGoal!=null?t.weightGoal:"",placeholder:"60.0",oninput:e=>t.weightGoal=e.target.value===""?null:num(e.target.value)})),
+    h("button",{class:"btn",style:"margin-top:4px",onclick:()=>{
+      S.targets={kcal:round(num(t.kcal)),p:round(num(t.p)),f:round(num(t.f)),c:round(num(t.c)),weightGoal:t.weightGoal!=null?+num(t.weightGoal).toFixed(1):null};
+      save();toast("目標を保存した");render();
+    }},"目標を保存"),
+  ));
+
+  // TDEE auto-calc
+  const help={w:(S.profile&&S.profile.weightHint)||"",lvl:1.55,goal:"cut"};
+  view.appendChild(h("div",{class:"card"},h("h2",null,"TDEE自動計算"),
+    h("div",{class:"tiny muted",style:"margin:-4px 0 12px"},"TDEE＝1日の推定消費カロリー。体重・活動量・目的から目標kcalとPFCを自動で埋めるよ。"),
+    h("label",{class:"fld"},h("span",null,"体重 kg"),h("input",{type:"text",inputmode:"decimal",placeholder:"65",oninput:e=>help.w=e.target.value})),
+    h("div",{class:"sec"},"活動量"),
+    h("div",{class:"seg"},segBtn("低い",false,e=>setSeg(e,()=>help.lvl=1.375)),segBtn("普通",true,e=>setSeg(e,()=>help.lvl=1.55)),segBtn("高い",false,e=>setSeg(e,()=>help.lvl=1.725))),
+    h("div",{class:"sec",style:"margin-top:10px"},"目的"),
+    h("div",{class:"seg"},segBtn("減量",true,e=>setSeg(e,()=>help.goal="cut")),segBtn("維持",false,e=>setSeg(e,()=>help.goal="keep")),segBtn("増量",false,e=>setSeg(e,()=>help.goal="bulk"))),
+    h("button",{class:"btn tint",style:"margin-top:12px",onclick:()=>{
+      const w=num(help.w);if(!w){toast("体重を入れてね");return;}
+      const bmr=w*24*0.9;let kcal=bmr*help.lvl;
+      if(help.goal==="cut")kcal-=350;if(help.goal==="bulk")kcal+=250;
+      kcal=round(kcal/10)*10;const P=round(w*2);const F=round(w*0.9);const C=Math.max(0,round((kcal-P*4-F*9)/4));
+      S.targets={...S.targets,kcal,p:P,f:F,c:C};save();toast(`反映：${kcal}kcal / P${P} F${F} C${C}`);render();
+    }},"この目安を目標に反映"),
+    h("div",{class:"tiny muted",style:"margin-top:8px"},"一般的な概算式（BMR×活動係数、P=2g/kg・F=0.9g/kg）。医学的最適値ではないよ。"),
+  ));
+
+  // my foods
+  const nf={name:"",unit:"100g",kcal:"",p:"",f:"",c:""};
+  const foodsCard=h("div",{class:"card"},h("h2",null,"マイ食品"));
+  const flist=h("div",{class:"list"});
+  S.foods.forEach(fd=>flist.appendChild(h("div",{class:"item"},
+    h("div",null,h("div",{class:"nm"},fd.name),h("div",{class:"sub"},`${fd.unit} ・ ${round(fd.kcal)}kcal P${fd.p} F${fd.f} C${fd.c}`)),
+    h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",fd.name)){S.foods=S.foods.filter(x=>x.id!==fd.id);persist();}}},"削除"),
+  )));
+  foodsCard.appendChild(flist);
+  foodsCard.appendChild(h("div",{class:"sec",style:"margin-top:12px"},"新しい食品を追加"));
+  foodsCard.appendChild(h("div",{class:"grid2"},
+    h("label",{class:"fld",style:"margin:0"},h("span",null,"名前"),h("input",{placeholder:"食品名",oninput:e=>nf.name=e.target.value})),
+    h("label",{class:"fld",style:"margin:0"},h("span",null,"単位"),h("input",{value:"100g",oninput:e=>nf.unit=e.target.value})),
+  ));
+  const nfKcal=h("b",null,"0");
+  const nfCalc=()=>{nfKcal.textContent=round(num(nf.p)*4+num(nf.f)*9+num(nf.c)*4);};
+  foodsCard.appendChild(h("div",{class:"grid3",style:"margin-top:2px"},
+    numFld("P","g",v=>{nf.p=v;nfCalc();}),numFld("F","g",v=>{nf.f=v;nfCalc();}),numFld("C","g",v=>{nf.c=v;nfCalc();})));
+  foodsCard.appendChild(h("div",{class:"between",style:"margin-top:10px"},
+    h("span",{class:"tiny muted"},"カロリー（自動計算）"),h("div",{style:"font-weight:800;font-size:16px"},nfKcal," kcal")));
+  foodsCard.appendChild(h("button",{class:"btn ghost",style:"margin-top:12px",onclick:()=>{
+    if(!nf.name.trim()){toast("食品名を入れてね");return;}
+    S.foods.push({id:uid(),name:nf.name.trim(),unit:nf.unit||"1食",kcal:round(num(nf.p)*4+num(nf.f)*9+num(nf.c)*4),p:num(nf.p),f:num(nf.f),c:num(nf.c)});
+    persist();toast("食品を追加した");
+  }},"食品を追加"));
+  view.appendChild(foodsCard);
+
+  // profile
+  view.appendChild(h("div",{class:"card"},h("h2",null,"プロフィール"),
+    h("label",{class:"fld"},h("span",null,"名前"),h("input",{value:p.name||"",placeholder:"例）ぶっちー",oninput:e=>p.name=e.target.value})),
+    h("label",{class:"fld"},h("span",null,"身長 cm"),h("input",{type:"text",inputmode:"decimal",value:p.height!=null?p.height:"",placeholder:"166",oninput:e=>p.height=e.target.value===""?null:num(e.target.value)})),
+    h("button",{class:"btn ghost",style:"margin-top:4px",onclick:()=>{S.profile={name:p.name||"",height:p.height!=null?p.height:null};save();toast("保存した");}},"保存"),
+  ));
+
+  // data
+  view.appendChild(h("div",{class:"card"},h("h2",null,"データ"),
+    h("div",{class:"grid2"},
+      h("button",{class:"btn ghost sm",style:"width:100%",onclick:exportJSON},"バックアップ書き出し"),
+      h("button",{class:"btn ghost sm",style:"width:100%",onclick:importJSON},"読み込み"),
+    ),
+    h("button",{class:"btn danger",style:"margin-top:10px",onclick:async()=>{
+      if(await confirmModal("全データを消す？","この操作は元に戻せないよ","リセット")){S=defState();save();selDate=today();toast("リセットした");render();}
+    }},"すべてリセット"),
+    h("div",{class:"tiny muted",style:"margin-top:8px"},"データはこの端末のブラウザにだけ保存されるよ。機種変更や消去に備えて、たまに書き出しておくと安心。"),
+  ));
+}
+function tNum(label,val,fn){return h("label",{class:"fld",style:"margin:0"},h("span",null,label),
+  h("input",{type:"text",inputmode:"decimal",value:val,oninput:e=>fn(e.target.value)}));}
+function setSeg(ev,fn){const seg=ev.currentTarget.parentElement;seg.querySelectorAll("button").forEach(b=>b.classList.remove("on"));ev.currentTarget.classList.add("on");fn();}
+
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=url;a.download=`bodymake-backup-${today()}.json`;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);toast("書き出した");
+}
+function importJSON(){
+  const inp=document.createElement("input");inp.type="file";inp.accept="application/json,.json";
+  inp.onchange=async()=>{const file=inp.files[0];if(!file)return;
+    try{const txt=await file.text();const data=normalize(JSON.parse(txt));
+      if(await confirmModal("読み込む？","今のデータは上書きされるよ","読み込み",false)){S=data;save();selDate=today();toast("読み込んだ");render();}
+    }catch(e){toast("読み込めなかった（ファイル形式を確認）");}};
+  inp.click();
+}
+
+/* ============ router ============ */
+const TITLES={food:["食事","PFCと水分を記録"],weight:["体重","毎日の体重を記録"],train:["トレーニング","筋トレと有酸素を記録"],settings:["設定","目標・マイ食品・データ"]};
+function render(){
+  $("#title").textContent=TITLES[TAB][0];
+  $("#subtitle").textContent=TITLES[TAB][1];
+  document.querySelectorAll(".tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.tab===TAB));
+  if(TAB==="food")renderFood();
+  else if(TAB==="weight")renderWeight();
+  else if(TAB==="train")renderTrain();
+  else renderSettings();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".tabbar button").forEach(b=>b.addEventListener("click",()=>{TAB=b.dataset.tab;if(TAB==="food")selDate=today();render();}));
+render();
+</script>
+</body>
+</html>
