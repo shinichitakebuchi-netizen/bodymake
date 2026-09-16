@@ -190,6 +190,15 @@
     background:rgba(10,132,255,0.12);border:1px solid rgba(10,132,255,0.32);
     backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%)}
   .installbar .barx{border:none;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}
+  .caphead{display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer}
+  .chev{display:inline-block;color:var(--muted);font-size:16px;transition:transform .2s;transform:rotate(-90deg);font-weight:700}
+  .chev.open{transform:rotate(0)}
+  .parttabs{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;margin:0 -2px}
+  .parttabs::-webkit-scrollbar{display:none}
+  .parttabs button{flex:none;border:1px solid var(--glass-brd);background:var(--field);color:var(--muted);
+    font:inherit;font-size:13px;font-weight:600;padding:8px 15px;border-radius:999px;cursor:pointer}
+  .parttabs button.on{background:rgba(10,132,255,0.14);color:var(--blue);border-color:rgba(10,132,255,0.34)}
+  .item .ebtn{border:none;background:none;color:var(--blue);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 4px}
   .hidden{display:none !important}
 </style>
 </head>
@@ -310,6 +319,34 @@ function confirmModal(title,msg,okLabel="削除",danger=true){
     document.body.appendChild(ov);
   });
 }
+/* collapsible card: state persists across re-renders */
+const collapsed={myFoods:true};
+function collapsibleCard(key,title,bodyEls,rightEl){
+  const open=!collapsed[key];
+  const chev=h("span",{class:"chev"+(open?" open":"")},"⌄");
+  const head=h("div",{class:"caphead",onclick:()=>{collapsed[key]=open;render();}},
+    h("div",{class:"row",style:"gap:8px"},h("h2",{style:"margin:0"},title),chev),
+    rightEl||null);
+  const card=h("div",{class:"card"},head);
+  if(open){const body=h("div",{style:"margin-top:12px"});bodyEls.flat().forEach(e=>e&&body.appendChild(e));card.appendChild(body);}
+  return card;
+}
+/* form modal for editing */
+function modalShell(title,bodyEls,onSave){
+  const save=h("button",{class:"btn",onclick:()=>{if(onSave()!==false)close();}},"保存");
+  const cancel=h("button",{class:"btn ghost",onclick:()=>close()},"キャンセル");
+  const inner=h("div",{class:"modal",style:"text-align:left;max-width:360px"},
+    h("h3",{style:"text-align:center;margin-bottom:14px"},title));
+  bodyEls.flat().forEach(e=>e&&inner.appendChild(e));
+  inner.appendChild(h("div",{class:"row2",style:"margin-top:6px"},cancel,save));
+  const ov=h("div",{class:"overlay",onclick:e=>{if(e.target===ov)close();}},inner);
+  function close(){ov.remove();}
+  document.body.appendChild(ov);
+}
+function txtFld(label,val,fn,ph){return h("label",{class:"fld"},h("span",null,label),
+  h("input",{value:val!=null?val:"",placeholder:ph||"",oninput:e=>fn(e.target.value)}));}
+function decFld(label,val,fn){return h("label",{class:"fld",style:"margin:0"},h("span",null,label),
+  h("input",{type:"text",inputmode:"decimal",value:val!=null?val:"",oninput:e=>fn(e.target.value)}));}
 
 /* ============ macro aggregation ============ */
 function dayMeals(date){return S.meals[date]||[];}
@@ -420,23 +457,21 @@ function renderFood(){
   const body=foodMode==="manual"?manualForm():myListPanel();
   view.appendChild(h("div",{class:"card"},h("h2",null,"記録を追加"),modeSeg,timeSeg,h("div",{style:"margin-top:12px"},body)));
 
-  // logged list grouped by time
+  // logged list (collapsible)
   const items=dayMeals(selDate);
-  const listCard=h("div",{class:"card"},h("h2",null,"Today"));
-  if(items.length===0){listCard.appendChild(h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。"));}
+  let logBody;
+  if(items.length===0){logBody=[h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。")];}
   else{
+    logBody=[];
     ["朝","昼","夕","間食"].forEach(tm=>{
       const g=items.filter(m=>m.time===tm);if(g.length===0)return;
-      listCard.appendChild(h("div",{class:"sec"},tm+`　${round(g.reduce((a,m)=>a+num(m.kcal),0))} kcal`));
+      logBody.push(h("div",{class:"sec"},tm+`　${round(g.reduce((a,m)=>a+num(m.kcal),0))} kcal`));
       const list=h("div",{class:"list"});
-      g.forEach(m=>list.appendChild(h("div",{class:"item"},
-        h("div",null,h("div",{class:"nm"},m.name),h("div",{class:"sub"},`${round(m.kcal)}kcal ・ P${round(m.p)} F${round(m.f)} C${round(m.c)}`)),
-        h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",m.name)){S.meals[selDate]=dayMeals(selDate).filter(x=>x.id!==m.id);persist();}}},"削除"),
-      )));
-      listCard.appendChild(list);
+      g.forEach(m=>list.appendChild(mealRow(m,selDate)));
+      logBody.push(list);
     });
   }
-  view.appendChild(listCard);
+  view.appendChild(collapsibleCard("foodLog","Today",logBody));
 
   // trend (週/月)
   const days=[];for(let i=trendRange-1;i>=0;i--)days.push(addDays(today(),-i));
@@ -512,6 +547,47 @@ function addMeal(m){
   S.meals[selDate].push({id:uid(),time:mealTime,name:m.name,kcal:round(m.kcal),p:+m.p.toFixed(1),f:+m.f.toFixed(1),c:+m.c.toFixed(1)});
   persist();toast("追加した");
 }
+function mealRow(m,date){
+  return h("div",{class:"item"},
+    h("div",null,h("div",{class:"nm"},m.name),h("div",{class:"sub"},`${round(m.kcal)}kcal ・ P${round(m.p)} F${round(m.f)} C${round(m.c)}`)),
+    h("div",{class:"row",style:"gap:2px;flex:none"},
+      h("button",{class:"ebtn",onclick:()=>editMeal(m,date)},"編集"),
+      h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",m.name)){S.meals[date]=dayMeals(date).filter(x=>x.id!==m.id);persist();}}},"削除")),
+  );
+}
+function editMeal(m,date){
+  const f={name:m.name,time:m.time,p:m.p,f:m.f,c:m.c};
+  const kcalOut=h("b",null,round(num(f.p)*4+num(f.f)*9+num(f.c)*4));
+  const calc=()=>{kcalOut.textContent=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);};
+  const timeSeg=h("div",{class:"seg"},...["朝","昼","夕","間食"].map(tm=>h("button",{class:f.time===tm?"on":"",onclick:function(){f.time=tm;[...this.parentElement.children].forEach(b=>b.classList.remove("on"));this.classList.add("on");}},tm)));
+  modalShell("記録を編集",[
+    txtFld("メニュー名",f.name,v=>f.name=v),
+    h("div",{class:"sec",style:"margin:0 0 6px"},"時間"),timeSeg,
+    h("div",{class:"grid3",style:"margin-top:12px"},decFld("P g",f.p,v=>{f.p=v;calc();}),decFld("F g",f.f,v=>{f.f=v;calc();}),decFld("C g",f.c,v=>{f.c=v;calc();})),
+    h("div",{class:"between",style:"margin-top:10px"},h("span",{class:"tiny muted"},"カロリー（自動）"),h("div",{style:"font-weight:800"},kcalOut," kcal")),
+  ],()=>{
+    if(!f.name.trim()){toast("メニュー名を入れてね");return false;}
+    const it=dayMeals(date).find(x=>x.id===m.id);if(!it)return;
+    it.name=f.name.trim();it.time=f.time;it.p=+num(f.p).toFixed(1);it.f=+num(f.f).toFixed(1);it.c=+num(f.c).toFixed(1);it.kcal=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);
+    persist();toast("更新した");
+  });
+}
+function editFood(fd){
+  const f={name:fd.name,unit:fd.unit,p:fd.p,f:fd.f,c:fd.c};
+  const kcalOut=h("b",null,round(num(f.p)*4+num(f.f)*9+num(f.c)*4));
+  const calc=()=>{kcalOut.textContent=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);};
+  modalShell("食品を編集",[
+    txtFld("名前",f.name,v=>f.name=v),
+    txtFld("単位",f.unit,v=>f.unit=v,"100g"),
+    h("div",{class:"grid3"},decFld("P",f.p,v=>{f.p=v;calc();}),decFld("F",f.f,v=>{f.f=v;calc();}),decFld("C",f.c,v=>{f.c=v;calc();})),
+    h("div",{class:"between",style:"margin-top:10px"},h("span",{class:"tiny muted"},"カロリー（自動）"),h("div",{style:"font-weight:800"},kcalOut," kcal")),
+  ],()=>{
+    if(!f.name.trim()){toast("名前を入れてね");return false;}
+    const it=S.foods.find(x=>x.id===fd.id);if(!it)return;
+    it.name=f.name.trim();it.unit=f.unit||"1食";it.p=num(f.p);it.f=num(f.f);it.c=num(f.c);it.kcal=round(num(f.p)*4+num(f.f)*9+num(f.c)*4);
+    persist();toast("更新した");
+  });
+}
 
 /* ============ WEIGHT tab ============ */
 function renderWeight(){
@@ -568,7 +644,9 @@ function renderWeight(){
 }
 
 /* ============ TRAIN tab ============ */
-const PARTS=["胸","背中","脚","肩","腕","腹"];
+const PARTS=["胸","肩","腕","背中","脚","その他"];
+const MAINPARTS=["胸","肩","腕","背中","脚"];
+let strPart="胸";        // 筋トレの部位タブ
 let selEx="";            // 選択中の筋トレ種目名
 let strNew=false;        // 新種目入力モード
 let trainMode="strength";// strength | cardio
@@ -598,16 +676,17 @@ function renderTrain(){
   const form=trainMode==="strength"?strengthForm(dstr):cardioForm(dstr);
   view.appendChild(h("div",{class:"card"},h("h2",null,"記録する"),seg,h("div",{style:"margin-top:12px"},form)));
 
-  // today list
-  const listCard=h("div",{class:"card"},h("h2",null,"Today's log"));
-  if(wk.length===0)listCard.appendChild(h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。"));
+  // today list (collapsible)
+  let logBody;
+  if(wk.length===0)logBody=[h("div",{class:"empty"},"まだ記録がないよ。上から追加してね。")];
   else{
-    if(strWk.length){listCard.appendChild(h("div",{class:"sec"},"筋トレ"));
-      const l=h("div",{class:"list"});strWk.forEach(e=>l.appendChild(strRow(e,dstr,wk)));listCard.appendChild(l);}
-    if(carWk.length){listCard.appendChild(h("div",{class:"sec",style:"margin-top:8px"},"有酸素"));
-      const l=h("div",{class:"list"});carWk.forEach(e=>l.appendChild(carRow(e,dstr,wk)));listCard.appendChild(l);}
+    logBody=[];
+    if(strWk.length){logBody.push(h("div",{class:"sec"},"筋トレ"));
+      const l=h("div",{class:"list"});strWk.forEach(e=>l.appendChild(strRow(e,dstr,wk)));logBody.push(l);}
+    if(carWk.length){logBody.push(h("div",{class:"sec",style:"margin-top:8px"},"有酸素"));
+      const l=h("div",{class:"list"});carWk.forEach(e=>l.appendChild(carRow(e,dstr,wk)));logBody.push(l);}
   }
-  view.appendChild(listCard);
+  view.appendChild(collapsibleCard("trainLog","Today's log",logBody));
 
   // trends (週/月)
   const days=[];for(let i=trendRange-1;i>=0;i--)days.push(addDays(today(),-i));
@@ -620,28 +699,29 @@ function renderTrain(){
   ));
 }
 function strengthForm(dstr){
-  const lib=S.exercises;
-  if(!strNew&&!selEx&&lib[0])selEx=lib[0].name;
-  const f={sets:"",reps:"",weight:"",newName:"",newPart:"胸"};
   const wrap=h("div",null);
+  wrap.appendChild(h("div",{class:"parttabs"},...PARTS.map(p=>h("button",{class:strPart===p?"on":"",onclick:()=>{strPart=p;selEx="";strNew=false;render();}},p))));
+  const inPart=ex=>strPart==="その他"?!MAINPARTS.includes(ex.part):ex.part===strPart;
+  const lib=S.exercises.filter(inPart);
+  if(!strNew&&!selEx&&lib[0])selEx=lib[0].name;
+  const f={sets:"",reps:"",weight:"",newName:""};
+  const newMode=strNew||lib.length===0;
   const exSel=h("select",{onchange:e=>{
     if(e.target.value==="__new"){strNew=true;render();return;}
     selEx=e.target.value;strNew=false;render();
   }},
-    ...lib.map(ex=>h("option",{value:ex.name,selected:(!strNew&&ex.name===selEx)?"":null},`${ex.name}（${ex.part}）`)),
-    h("option",{value:"__new",selected:strNew?"":null},"＋ 新しい種目を入力"));
-  wrap.appendChild(h("label",{class:"fld"},h("span",null,"種目"),exSel));
-  if(strNew){
-    wrap.appendChild(h("label",{class:"fld"},h("span",null,"種目名"),h("input",{placeholder:"例）インクラインダンベルプレス",oninput:e=>f.newName=e.target.value})));
-    const psel=h("select",{onchange:e=>f.newPart=e.target.value},...PARTS.map(p=>h("option",{value:p,selected:p===f.newPart?"":null},p)));
-    wrap.appendChild(h("label",{class:"fld"},h("span",null,"部位"),psel));
+    ...lib.map(ex=>h("option",{value:ex.name,selected:(!strNew&&ex.name===selEx)?"":null},ex.name)),
+    h("option",{value:"__new",selected:newMode?"":null},"＋ 新しい種目を入力"));
+  wrap.appendChild(h("label",{class:"fld",style:"margin-top:12px"},h("span",null,`種目（${strPart}）`),exSel));
+  if(newMode){
+    wrap.appendChild(h("label",{class:"fld"},h("span",null,"新しい種目名"),h("input",{placeholder:"例）インクラインダンベルプレス",oninput:e=>f.newName=e.target.value})));
   }
   wrap.appendChild(h("div",{class:"grid4"},numFld("セット","回",v=>f.sets=v),numFld("レップ","回",v=>f.reps=v),numFld("重量","kg",v=>f.weight=v),h("div",null)));
   wrap.appendChild(h("button",{class:"btn",style:"margin-top:12px",onclick:()=>{
-    let name,part;
-    if(strNew){name=f.newName.trim();part=f.newPart;if(!name){toast("種目名を入れてね");return;}
-      if(!lib.some(x=>x.name===name))S.exercises.push({id:uid(),name,part});selEx=name;strNew=false;}
-    else{const ex=lib.find(x=>x.name===selEx);if(!ex){toast("種目を選んでね");return;}name=ex.name;part=ex.part;}
+    let name;const part=strPart;
+    if(newMode){name=f.newName.trim();if(!name){toast("種目名を入れてね");return;}
+      if(!S.exercises.some(x=>x.name===name))S.exercises.push({id:uid(),name,part});selEx=name;strNew=false;}
+    else{const ex=lib.find(x=>x.name===selEx);if(!ex){toast("種目を選んでね");return;}name=ex.name;}
     if(!f.sets||!f.reps){toast("セット・レップを入れてね");return;}
     if(!S.workouts[dstr])S.workouts[dstr]=[];
     S.workouts[dstr].push({id:uid(),kind:"strength",name,part,sets:num(f.sets),reps:num(f.reps),weight:num(f.weight)});
@@ -670,8 +750,9 @@ function cardioForm(dstr){
 }
 function strRow(e,dstr,wk){
   return h("div",{class:"item"},
-    h("div",null,h("div",{class:"nm"},e.name),h("div",{class:"sub"},`${e.sets}セット × ${e.reps}回 × ${e.weight}kg　=　${round(e.sets*e.reps*e.weight)}kg`)),
-    h("div",{class:"row"},h("span",{class:"pill"},e.part||""),
+    h("div",null,h("div",{class:"nm"},e.name),h("div",{class:"sub"},`${e.part||""}　${e.sets}×${e.reps}×${e.weight}kg = ${round(e.sets*e.reps*e.weight)}kg`)),
+    h("div",{class:"row",style:"gap:2px;flex:none"},
+      h("button",{class:"ebtn",onclick:()=>editStrength(e,dstr)},"編集"),
       h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",e.name)){S.workouts[dstr]=wk.filter(x=>x.id!==e.id);persist();}}},"削除")),
   );
 }
@@ -679,8 +760,36 @@ function carRow(e,dstr,wk){
   const sub=[e.min?`${round(e.min)}分`:null,e.km?`${(+e.km.toFixed(1))}km`:null].filter(Boolean).join(" ・ ")||"—";
   return h("div",{class:"item"},
     h("div",null,h("div",{class:"nm"},e.name),h("div",{class:"sub"},sub)),
-    h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",e.name)){S.workouts[dstr]=wk.filter(x=>x.id!==e.id);persist();}}},"削除"),
+    h("div",{class:"row",style:"gap:2px;flex:none"},
+      h("button",{class:"ebtn",onclick:()=>editCardio(e,dstr)},"編集"),
+      h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",e.name)){S.workouts[dstr]=wk.filter(x=>x.id!==e.id);persist();}}},"削除")),
   );
+}
+function editStrength(e,dstr){
+  const f={name:e.name,part:e.part||"その他",sets:e.sets,reps:e.reps,weight:e.weight};
+  const psel=h("select",{onchange:ev=>f.part=ev.target.value},...PARTS.map(p=>h("option",{value:p,selected:p===f.part?"":null},p)));
+  modalShell("筋トレを編集",[
+    txtFld("種目名",f.name,v=>f.name=v),
+    h("label",{class:"fld"},h("span",null,"部位"),psel),
+    h("div",{class:"grid3"},decFld("セット",f.sets,v=>f.sets=v),decFld("レップ",f.reps,v=>f.reps=v),decFld("重量kg",f.weight,v=>f.weight=v)),
+  ],()=>{
+    if(!f.name.trim()){toast("種目名を入れてね");return false;}
+    const it=(S.workouts[dstr]||[]).find(x=>x.id===e.id);if(!it)return;
+    it.name=f.name.trim();it.part=f.part;it.sets=num(f.sets);it.reps=num(f.reps);it.weight=num(f.weight);
+    persist();toast("更新した");
+  });
+}
+function editCardio(e,dstr){
+  const f={name:e.name,min:e.min,km:e.km};
+  const seg=h("div",{class:"seg"},...["ランニング","ウォーキング"].map(n=>h("button",{class:f.name===n?"on":"",onclick:function(){f.name=n;[...this.parentElement.children].forEach(b=>b.classList.remove("on"));this.classList.add("on");}},n)));
+  modalShell("有酸素を編集",[
+    h("div",{class:"sec",style:"margin:0 0 6px"},"種目"),seg,
+    h("div",{class:"grid2",style:"margin-top:12px"},decFld("時間 分",f.min,v=>f.min=v),decFld("距離 km",f.km,v=>f.km=v)),
+  ],()=>{
+    const it=(S.workouts[dstr]||[]).find(x=>x.id===e.id);if(!it)return;
+    it.name=f.name;it.min=num(f.min);it.km=num(f.km);
+    persist();toast("更新した");
+  });
 }
 
 /* ============ SETTINGS tab ============ */
@@ -738,32 +847,32 @@ function renderSettings(){
     h("div",{class:"tiny muted",style:"margin-top:8px"},"一般的な概算式（BMR×活動係数、P=2g/kg・F=0.9g/kg）。医学的最適値ではないよ。"),
   ));
 
-  // my foods
-  const nf={name:"",unit:"100g",kcal:"",p:"",f:"",c:""};
-  const foodsCard=h("div",{class:"card"},h("h2",null,"マイ食品"));
+  // my foods (collapsible)
+  const nf={name:"",unit:"100g",p:"",f:"",c:""};
   const flist=h("div",{class:"list"});
+  if(S.foods.length===0)flist.appendChild(h("div",{class:"empty"},"まだ無いよ。下から追加してね。"));
   S.foods.forEach(fd=>flist.appendChild(h("div",{class:"item"},
     h("div",null,h("div",{class:"nm"},fd.name),h("div",{class:"sub"},`${fd.unit} ・ ${round(fd.kcal)}kcal P${fd.p} F${fd.f} C${fd.c}`)),
-    h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",fd.name)){S.foods=S.foods.filter(x=>x.id!==fd.id);persist();}}},"削除"),
+    h("div",{class:"row",style:"gap:2px;flex:none"},
+      h("button",{class:"ebtn",onclick:()=>editFood(fd)},"編集"),
+      h("button",{class:"del",onclick:async()=>{if(await confirmModal("削除する？",fd.name)){S.foods=S.foods.filter(x=>x.id!==fd.id);persist();}}},"削除")),
   )));
-  foodsCard.appendChild(flist);
-  foodsCard.appendChild(h("div",{class:"sec",style:"margin-top:12px"},"新しい食品を追加"));
-  foodsCard.appendChild(h("div",{class:"grid2"},
-    h("label",{class:"fld",style:"margin:0"},h("span",null,"名前"),h("input",{placeholder:"食品名",oninput:e=>nf.name=e.target.value})),
-    h("label",{class:"fld",style:"margin:0"},h("span",null,"単位"),h("input",{value:"100g",oninput:e=>nf.unit=e.target.value})),
-  ));
   const nfKcal=h("b",null,"0");
   const nfCalc=()=>{nfKcal.textContent=round(num(nf.p)*4+num(nf.f)*9+num(nf.c)*4);};
-  foodsCard.appendChild(h("div",{class:"grid3",style:"margin-top:2px"},
-    numFld("P","g",v=>{nf.p=v;nfCalc();}),numFld("F","g",v=>{nf.f=v;nfCalc();}),numFld("C","g",v=>{nf.c=v;nfCalc();})));
-  foodsCard.appendChild(h("div",{class:"between",style:"margin-top:10px"},
-    h("span",{class:"tiny muted"},"カロリー（自動計算）"),h("div",{style:"font-weight:800;font-size:16px"},nfKcal," kcal")));
-  foodsCard.appendChild(h("button",{class:"btn ghost",style:"margin-top:12px",onclick:()=>{
-    if(!nf.name.trim()){toast("食品名を入れてね");return;}
-    S.foods.push({id:uid(),name:nf.name.trim(),unit:nf.unit||"1食",kcal:round(num(nf.p)*4+num(nf.f)*9+num(nf.c)*4),p:num(nf.p),f:num(nf.f),c:num(nf.c)});
-    persist();toast("食品を追加した");
-  }},"食品を追加"));
-  view.appendChild(foodsCard);
+  const addFood=[
+    h("div",{class:"sec",style:"margin-top:14px"},"新しい食品を追加"),
+    h("div",{class:"grid2"},
+      h("label",{class:"fld",style:"margin:0"},h("span",null,"名前"),h("input",{placeholder:"食品名",oninput:e=>nf.name=e.target.value})),
+      h("label",{class:"fld",style:"margin:0"},h("span",null,"単位"),h("input",{value:"100g",oninput:e=>nf.unit=e.target.value}))),
+    h("div",{class:"grid3",style:"margin-top:2px"},numFld("P","g",v=>{nf.p=v;nfCalc();}),numFld("F","g",v=>{nf.f=v;nfCalc();}),numFld("C","g",v=>{nf.c=v;nfCalc();})),
+    h("div",{class:"between",style:"margin-top:10px"},h("span",{class:"tiny muted"},"カロリー（自動計算）"),h("div",{style:"font-weight:800;font-size:16px"},nfKcal," kcal")),
+    h("button",{class:"btn ghost",style:"margin-top:12px",onclick:()=>{
+      if(!nf.name.trim()){toast("食品名を入れてね");return;}
+      S.foods.push({id:uid(),name:nf.name.trim(),unit:nf.unit||"1食",kcal:round(num(nf.p)*4+num(nf.f)*9+num(nf.c)*4),p:num(nf.p),f:num(nf.f),c:num(nf.c)});
+      persist();toast("食品を追加した");
+    }},"食品を追加"),
+  ];
+  view.appendChild(collapsibleCard("myFoods","マイ食品",[flist,...addFood]));
 
   // profile
   view.appendChild(h("div",{class:"card"},h("h2",null,"プロフィール"),
@@ -813,9 +922,8 @@ function render(){
   else if(TAB==="weight")renderWeight();
   else if(TAB==="train")renderTrain();
   else renderSettings();
-  window.scrollTo(0,0);
 }
-document.querySelectorAll(".tabbar button").forEach(b=>b.addEventListener("click",()=>{TAB=b.dataset.tab;if(TAB==="food")selDate=today();render();}));
+document.querySelectorAll(".tabbar button").forEach(b=>b.addEventListener("click",()=>{TAB=b.dataset.tab;if(TAB==="food")selDate=today();render();window.scrollTo(0,0);}));
 render();
 
 /* ---- PWA install ---- */
