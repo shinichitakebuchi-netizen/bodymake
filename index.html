@@ -185,6 +185,11 @@
   .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom));transform:translateX(-50%);
     background:rgba(20,22,28,.92);color:#fff;padding:10px 16px;border-radius:14px;font-size:13px;font-weight:600;z-index:120;opacity:0;transition:opacity .2s}
   .toast.show{opacity:1}
+  .installbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin:2px 0 12px;padding:11px 14px;border-radius:16px;font-size:13px;font-weight:600;
+    background:rgba(10,132,255,0.12);border:1px solid rgba(10,132,255,0.32);
+    backdrop-filter:blur(20px) saturate(160%);-webkit-backdrop-filter:blur(20px) saturate(160%)}
+  .installbar .barx{border:none;background:none;color:var(--muted);font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}
   .hidden{display:none !important}
 </style>
 </head>
@@ -196,6 +201,7 @@
     <div class="large-title glass-txt" id="title">食事</div>
     <div class="subtitle" id="subtitle"></div>
   </header>
+  <div id="installbar" class="hidden"></div>
   <main id="view"></main>
 </div>
 
@@ -693,6 +699,14 @@ function renderSettings(){
     h("div",{class:"tiny muted",style:"margin-top:8px"},"「自動」は端末の設定に合わせるよ。"),
   ));
 
+  // install
+  const inst=h("div",{class:"card"},h("h2",null,"アプリとして使う"));
+  if(isStandalone())inst.appendChild(h("div",{class:"tiny muted"},"インストール済みで起動中だよ。"));
+  else if(deferredPrompt)inst.appendChild(h("button",{class:"btn",onclick:doInstall},"アプリをインストール"));
+  else if(isIOS())inst.appendChild(h("div",{class:"tiny muted"},"Safariで開き、共有ボタン（□↑）→「ホーム画面に追加」で追加できるよ。"));
+  else inst.appendChild(h("div",{class:"tiny muted"},"インストールできる状態になると、ここと画面上部にボタンが出るよ。出ないときはブラウザのメニューの「ホーム画面に追加」を使ってね。"));
+  view.appendChild(inst);
+
   // targets
   view.appendChild(h("div",{class:"card"},h("h2",null,"目標（1日）"),
     h("div",{class:"grid4"},
@@ -803,6 +817,32 @@ function render(){
 }
 document.querySelectorAll(".tabbar button").forEach(b=>b.addEventListener("click",()=>{TAB=b.dataset.tab;if(TAB==="food")selDate=today();render();}));
 render();
+
+/* ---- PWA install ---- */
+let deferredPrompt=null, installDismissed=false;
+function isStandalone(){try{return (window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true;}catch(e){return false;}}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);}
+async function doInstall(){if(!deferredPrompt)return;deferredPrompt.prompt();try{await deferredPrompt.userChoice;}catch(e){}deferredPrompt=null;updateInstallBar();if(TAB==="settings")render();}
+function dismissBar(){installDismissed=true;updateInstallBar();}
+function updateInstallBar(){
+  const bar=document.getElementById("installbar");if(!bar)return;bar.innerHTML="";
+  if(isStandalone()||installDismissed){bar.className="hidden";return;}
+  let kids=null;
+  if(deferredPrompt){
+    kids=[h("span",null,"ホーム画面にアプリを追加できます"),
+      h("div",{class:"row",style:"gap:6px;flex:none"},
+        h("button",{class:"btn sm",onclick:doInstall},"インストール"),
+        h("button",{class:"barx",onclick:dismissBar},"×"))];
+  }else if(isIOS()){
+    kids=[h("span",null,"Safariの 共有 → 「ホーム画面に追加」でアプリになるよ"),
+      h("button",{class:"barx",onclick:dismissBar},"×")];
+  }
+  if(!kids){bar.className="hidden";return;}
+  bar.className="installbar";kids.forEach(k=>bar.appendChild(k));
+}
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;updateInstallBar();if(TAB==="settings")render();});
+window.addEventListener("appinstalled",()=>{deferredPrompt=null;installDismissed=true;updateInstallBar();try{toast("インストールしたよ");}catch(e){}});
+updateInstallBar();
 </script>
 <script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
 </body>
