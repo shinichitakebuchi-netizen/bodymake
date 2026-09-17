@@ -199,6 +199,9 @@
     font:inherit;font-size:13px;font-weight:600;padding:8px 15px;border-radius:999px;cursor:pointer}
   .parttabs button.on{background:rgba(10,132,255,0.14);color:var(--blue);border-color:rgba(10,132,255,0.34)}
   .item .ebtn{border:none;background:none;color:var(--blue);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 4px}
+  .prevbox{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;
+    margin:10px 0 2px;padding:9px 12px;border-radius:12px;background:var(--field);font-size:13px}
+  .prevbox .prevval{font-weight:700}
   .hidden{display:none !important}
 </style>
 </head>
@@ -744,6 +747,14 @@ function renderTrain(){
   }
   view.appendChild(trainTrend);
 }
+function lastStrengthRecord(name,beforeDate){
+  const ds=Object.keys(S.workouts).filter(d=>d<beforeDate).sort();
+  for(let i=ds.length-1;i>=0;i--){
+    const es=(S.workouts[ds[i]]||[]).filter(e=>e.kind!=="cardio"&&e.name===name);
+    if(es.length)return {date:ds[i],entries:es};
+  }
+  return null;
+}
 function strengthForm(dstr){
   const wrap=h("div",null);
   wrap.appendChild(h("div",{class:"parttabs"},...PARTS.map(p=>h("button",{class:strPart===p?"on":"",onclick:()=>{strPart=p;selEx="";strNew=false;render();}},p))));
@@ -761,6 +772,16 @@ function strengthForm(dstr){
   wrap.appendChild(h("label",{class:"fld",style:"margin-top:12px"},h("span",null,`種目（${strPart}）`),exSel));
   if(newMode){
     wrap.appendChild(h("label",{class:"fld"},h("span",null,"新しい種目名"),h("input",{placeholder:"例）インクラインダンベルプレス",oninput:e=>f.newName=e.target.value})));
+  }
+  if(!newMode&&selEx){
+    const prev=lastStrengthRecord(selEx,dstr);
+    if(prev){const dt=parseYmd(prev.date);
+      wrap.appendChild(h("div",{class:"prevbox"},
+        h("span",{class:"tiny muted"},`前回 ${dt.getMonth()+1}/${dt.getDate()}`),
+        h("span",{class:"prevval"},prev.entries.map(e=>`${e.sets}×${e.reps}×${e.weight}kg`).join(" / "))));
+    }else{
+      wrap.appendChild(h("div",{class:"prevbox"},h("span",{class:"tiny muted"},"前回の記録はまだないよ")));
+    }
   }
   wrap.appendChild(h("div",{class:"grid4"},numFld("セット","回",v=>f.sets=v),numFld("レップ","回",v=>f.reps=v),numFld("重量","kg",v=>f.weight=v),h("div",null)));
   wrap.appendChild(h("button",{class:"btn",style:"margin-top:12px",onclick:()=>{
