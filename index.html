@@ -153,7 +153,7 @@ nav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;st
 <div id="toast" hidden></div>
 <script>
 'use strict';
-const VERSION='1.1.0', KEY='bodycontrol.v1';
+const VERSION='1.2.0', KEY='bodycontrol.v1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -185,13 +185,13 @@ function defaults(){
     ['懸垂',1],['ダンベルカール',0],['ハンマーカール',0],['トライセプスプレスダウン',0]].map((a,i)=>({id:'e'+i,name:a[0],shoulder:!!a[1]}));
   const now=new Date();
   return {v:1,
-    settings:{height:166,goalWeight:60,goalFat:10,waterGoal:2000,factorTrain:1.6,factorOff:1.45,shoulderPain:false,
+    settings:{ai:{key:'',model:'gemini-3.8-flash'},height:166,goalWeight:60,goalFat:10,waterGoal:2000,factorTrain:1.6,factorOff:1.45,shoulderPain:false,
       targets:{train:{kcal:1900,p:145,f:55,c:206},off:{kcal:1800,p:145,f:60,c:176}},
       week:[{type:'off',menuId:null},{type:'train',menuId:'m1'},{type:'off',menuId:null},{type:'train',menuId:'m2'},{type:'off',menuId:null},{type:'train',menuId:'m1'},{type:'train',menuId:'m3'}]},
     exercises:ex,
     menus:[{id:'m1',name:'下半身＋腹筋',ex:['e0','e1','e2','e3','e4','e5']},{id:'m2',name:'胸＋背中',ex:['e6','e7','e8','e9','e10']},{id:'m3',name:'背中＋腕',ex:['e11','e8','e10','e12','e13','e14']}],
     body:[{id:uid(),date:ymd(now),time:'',weight:68.6,fat:22.6,muscle:50.5,bmr:1439,waist:null,initial:true}],
-    meals:{},foods:[],workouts:[],days:{}};
+    meals:{},foods:[],workouts:[],days:{},ai:{advice:{},goals:{}}};
 }
 let storeOK=true;
 function load(){
@@ -203,10 +203,12 @@ function migrate(o){
   const s=Object.assign({},d.settings,o.settings||{});
   s.targets={train:Object.assign({},d.settings.targets.train,(o.settings&&o.settings.targets&&o.settings.targets.train)||{}),off:Object.assign({},d.settings.targets.off,(o.settings&&o.settings.targets&&o.settings.targets.off)||{})};
   if(!Array.isArray(s.week)||s.week.length!==7)s.week=d.settings.week;
+  s.ai=Object.assign({},d.settings.ai,(o.settings&&o.settings.ai)||{});
   o.settings=s;
   ['exercises','menus','body','foods','workouts'].forEach(k=>{if(!Array.isArray(o[k]))o[k]=d[k]});
   if(!o.meals||typeof o.meals!=='object')o.meals={};
   if(!o.days||typeof o.days!=='object')o.days={};
+  if(!o.ai||typeof o.ai!=='object')o.ai={};o.ai.advice=o.ai.advice||{};o.ai.goals=o.ai.goals||{};
   Object.keys(o.days).forEach(d=>{const x=o.days[d];if(!x||!x.habits)return;ROUTINE.forEach(r=>{const h=x.habits[r.id];if(h&&h.actual){(x.log||(x.log=[])).push({id:uid(),time:h.actual,text:r.label});delete h.actual}})});
   o.v=1;return o;
 }
@@ -334,7 +336,7 @@ function mealSheet(m){
     ${m.id?'':'<label class="ck"><input type="checkbox" id="m_save" checked>食品リストに保存して次回から選べるようにする</label>'}
     <label class="fld" style="margin-top:6px"><span>食事の写真（任意）</span><input type="file" id="m_img" accept="image/*" data-chg="mealImg"></label>
     <div id="m_prev">${m.img?`<img src="${m.img}" alt="" style="width:96px;border-radius:12px"> <button class="btn sm" data-act="imgClear">写真を外す</button>`:''}</div>
-    <p class="note">写真からの栄養推定AIは未接続です。値は手入力してください。</p>
+    ${aiOn()?'<button class="btn wide" data-act="aiMeal" style="margin-top:8px">写真からAIで栄養を推定</button><p class="note" id="ai_msg">写真を選んでから押すと、食品名と栄養値を推定して入力します。推定値なので確認して直してください。</p>':'<p class="note">写真からの栄養推定は、設定タブでGeminiのAPIキーを入れると使えます。</p>'}
     <div class="btns" style="margin-top:14px">${m.id?'<button class="btn danger" data-act="mealDel">削除</button>':''}<button class="btn pri" data-act="mealSave">保存</button></div>`);
 }
 
@@ -521,10 +523,16 @@ VIEW.body=()=>{
       <div class="kv"><span>筋トレ実施</span><b>${a.sess}回<em>予定 ${a.planned}回</em></b></div>
       <div class="kv"><span>習慣達成率</span><b>${a.habit==null?'–':Math.round(a.habit)+'%'}</b></div></section>
       <section class="card"><div class="h">トレーニング重量の変化</div>${a.lifts.length?`<div class="list">${a.lifts.map(l=>`<div class="item"><span class="g"><b>${esc(l.name)}</b></span><span class="num">${l.from}kg → ${l.to}kg</span><span class="tag ${l.to>l.from?'up':''}">${l.to>l.from?'▲ ':''}${sg(r1(l.to-l.from))}kg</span></div>`).join('')}</div>`:'<p class="empty">比較できる記録がありません（今週と過去の両方に記録が必要）</p>'}</section>
-      <section class="card"><div class="h">翌週の改善目標</div>${weekGoals(a).map((x,i)=>`<div class="item" style="${i?'':'border-top:0'}"><span class="num" style="font-size:20px;color:var(--accent);width:20px">${i+1}</span><span class="g"><b style="font-weight:500">${esc(x)}</b></span></div>`).join('')}<p class="note">AI未接続のため、記録の数値から決まったルールで選んでいます。</p></section>`;
+      <section class="card"><div class="h">翌週の改善目標</div>${weekGoals(a).map((x,i)=>`<div class="item" style="${i?'':'border-top:0'}"><span class="num" style="font-size:20px;color:var(--accent);width:20px">${i+1}</span><span class="g"><b style="font-weight:500">${esc(x)}</b></span></div>`).join('')}<p class="note">この3つは、記録の数値から決まったルールで選んでいます。</p></section>
+      ${aiOn()?`<section class="card"><div class="h">AIからの翌週目標<span class="tag up">Gemini</span></div>${aiBusy==='goals'?'<p class="empty">AIが作成中です…</p>':(S.ai.goals[a.mon]?aiBox(S.ai.goals[a.mon]):'<p class="empty">この週の集計をAIに送って、翌週の改善目標を3つ作ります。</p>')}${aiErr?`<div class="adv amber"><b>失敗しました</b><p>${esc(aiErr)}</p></div>`:''}<button class="btn wide" data-act="aiGoals" style="margin-top:12px" ${aiBusy?'disabled':''}>AIに目標を出してもらう</button></section>`:''}`;
   }
-  return seg+`<div class="banner">AIは未接続です。下の内容は外部AIの分析ではなく、あなたの記録にあらかじめ決めたルールを当てはめた結果です。</div>
-    <section class="card"><div class="h">${fmtDate(cur)}時点の分析</div>${advise(cur).map((x,i)=>`<div class="adv ${x.amber?'amber':''}" style="${i?'':'margin-top:0'}"><span class="tag ${x.tag==='情報'?'':x.tag==='実測'||x.tag==='記録値'?'up':'est'}">${x.tag}</span><b>${esc(x.h)}</b><p>${esc(x.b)}</p></div>`).join('')}</section>`;
+  const ar=S.ai.advice[cur];
+  return seg+(aiOn()?`<section class="card"><div class="h">AIトレーナー（Gemini）<span class="tag up">接続済み</span></div>
+      ${aiBusy==='advice'?'<p class="empty">AIが分析中です…（10〜30秒ほど）</p>':(ar?aiBox(ar):'<p class="empty">直近14日の記録をAIに送って、食事・トレーニング・体重の傾向を分析します。</p>')}
+      ${aiErr?`<div class="adv amber"><b>AIの分析に失敗しました</b><p>${esc(aiErr)}</p></div>`:''}
+      <button class="btn pri wide" data-act="aiAdvice" style="margin-top:12px" ${aiBusy?'disabled':''}>${ar?'もう一度分析する':'AIに分析してもらう'}</button></section>`
+    :`<div class="banner">AIは未接続です。設定タブでGeminiのAPIキーを入れると、AIによる分析が使えます。下はAIではなく、記録に決まったルールを当てはめた結果です。</div>`)+
+    `<section class="card"><div class="h">ルール計算による分析（${fmtDate(cur)}時点）</div>${advise(cur).map((x,i)=>`<div class="adv ${x.amber?'amber':''}" style="${i?'':'margin-top:0'}"><span class="tag ${x.tag==='情報'?'':x.tag==='実測'||x.tag==='記録値'?'up':'est'}">${x.tag}</span><b>${esc(x.h)}</b><p>${esc(x.b)}</p></div>`).join('')}</section>`;
 };
 
 /* ---------- 設定 ---------- */
@@ -537,17 +545,61 @@ VIEW.settings=()=>{
   ${[['train','筋トレ日の目標'],['off','オフ日の目標']].map(a=>`<section class="card"><div class="h">${a[1]}</div>${setRow('カロリー kcal',`targets.${a[0]}.kcal`,s.targets[a[0]].kcal)}${setRow('たんぱく質 g',`targets.${a[0]}.p`,s.targets[a[0]].p)}${setRow('脂質 g',`targets.${a[0]}.f`,s.targets[a[0]].f)}${setRow('炭水化物 g',`targets.${a[0]}.c`,s.targets[a[0]].c)}</section>`).join('')}
   <section class="card"><div class="h">週間スケジュール</div>${[1,2,3,4,5,6,0].map(i=>`<div class="setrow"><label>${WD[i]}曜日</label><select data-chg="weekType" data-i="${i}" aria-label="${WD[i]}曜日の区分"><option value="train" ${s.week[i].type==='train'?'selected':''}>筋トレ日</option><option value="off" ${s.week[i].type==='off'?'selected':''}>オフ日</option></select>${s.week[i].type==='train'?`<select data-chg="weekMenu" data-i="${i}" aria-label="${WD[i]}曜日のメニュー">${S.menus.map(m=>`<option value="${m.id}" ${s.week[i].menuId===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select>`:''}</div>`).join('')}<p class="note">曜日の区分に合わせて、その日のPFC目標が自動で切り替わります。</p></section>
   <section class="card"><div class="h">消費カロリーの推定</div>${setRow('活動係数（筋トレ日）','factorTrain',s.factorTrain)}${setRow('活動係数（オフ日）','factorOff',s.factorOff)}<p class="note">推定消費＝最新の基礎代謝 × 活動係数。実測ではなく目安です。</p></section>
+  <section class="card"><div class="h">AI接続（Gemini）<span class="tag ${aiOn()?'up':'est'}">${aiOn()?'キー登録済み':'未接続'}</span></div>
+    <label class="fld"><span>Gemini APIキー</span><input id="ai_key" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" data-chg="aiKey" value="${esc(s.ai.key)}" placeholder="ここに貼り付け"></label>
+    <label class="fld"><span>モデル名</span><input id="ai_model" type="text" autocapitalize="off" spellcheck="false" data-chg="aiModel" value="${esc(s.ai.model)}"></label>
+    <div class="btns"><button class="btn" data-act="aiTest">接続テスト</button>${aiOn()?'<button class="btn danger" data-act="aiClear">キーを消す</button>':''}</div>
+    <p class="note" id="ai_test">キーは <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--accent)">Google AI Studio</a>（aistudio.google.com/apikey）で無料発行できます。</p>
+    <p class="note">キーはこの端末のブラウザ内にだけ保存し、JSONバックアップには含めません。AIを使うと、直近14日の体組成・食事・トレーニング・日記の内容と、推定に使う食事写真がGoogleに送信されます。無料枠では送った内容がGoogleのサービス改善に使われる場合があります。</p></section>
   <section class="card"><div class="h">データ</div>
     <div class="btns"><button class="btn" data-act="backup">JSONでバックアップ</button><label class="btn" style="cursor:pointer">JSONから復元<input type="file" id="restoreFile" accept="application/json,.json" data-chg="restore" hidden></label></div>
     <div class="btns" style="margin-top:8px"><button class="btn sm" data-act="csv" data-k="body">体組成CSV</button><button class="btn sm" data-act="csv" data-k="meals">食事CSV</button><button class="btn sm" data-act="csv" data-k="workouts">筋トレCSV</button><button class="btn sm" data-act="csv" data-k="log">日記CSV</button></div>
     <button class="btn wide danger" data-act="wipe" style="margin-top:8px">すべてのデータを消して初期状態に戻す</button>
     <p class="note">記録はこの端末のこのブラウザ内に保存されます（使用量 約${Math.max(1,Math.round(size/1024))}KB）。スマホとPCの間で自動同期はしないので、移すときはJSONバックアップを使ってください。</p></section>
   <section class="card"><div class="h">接続状況</div>
-    <div class="kv"><span>AIパーソナルトレーナー</span><b style="font-family:var(--body);font-size:13px;color:var(--amber)">未接続（ルール計算で代替）</b></div>
-    <div class="kv"><span>写真からの栄養推定</span><b style="font-family:var(--body);font-size:13px;color:var(--amber)">未接続</b></div>
+    <div class="kv"><span>AIパーソナルトレーナー</span><b style="font-family:var(--body);font-size:13px;color:var(--${aiOn()?'accent':'amber'})">${aiOn()?'Gemini（キー登録済み）':'未接続（ルール計算で代替）'}</b></div>
+    <div class="kv"><span>写真からの栄養推定</span><b style="font-family:var(--body);font-size:13px;color:var(--${aiOn()?'accent':'amber'})">${aiOn()?'Gemini（キー登録済み）':'未接続'}</b></div>
     <div class="kv"><span>歩数・活動量の連携</span><b style="font-family:var(--body);font-size:13px;color:var(--amber)">未接続</b></div>
     <div class="kv"><span>バージョン</span><b>${VERSION}</b></div></section>`;
 };
+
+/* ---------- AI（Gemini） ---------- */
+let aiBusy='',aiErr='';
+const aiOn=()=>!!(S.settings.ai&&S.settings.ai.key);
+async function gemini(parts,system,json){
+  const a=S.settings.ai;if(!a.key)throw new Error('APIキーが未設定です。設定タブで入力してください');
+  const body={contents:[{role:'user',parts}]};
+  if(system)body.systemInstruction={parts:[{text:system}]};
+  if(json)body.generationConfig={responseMimeType:'application/json'};
+  let res;
+  try{res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(a.model||'gemini-3.8-flash')+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':a.key},body:JSON.stringify(body)})}
+  catch(e){throw new Error('通信できませんでした。オフラインか、通信が遮断されています')}
+  let j=null;try{j=await res.json()}catch(e){}
+  if(!res.ok){const m=(j&&j.error&&j.error.message)||'';
+    throw new Error(res.status===429?'無料枠の上限に達しました。時間をおいて試してください':res.status===404?'モデル名が見つかりません。設定のモデル名を確認してください（'+m+'）':res.status===400||res.status===401||res.status===403?'APIキーかモデル名が正しくない可能性があります（'+m+'）':'エラー '+res.status+'（'+m+'）')}
+  const c=j&&j.candidates&&j.candidates[0];
+  const t=c&&c.content&&c.content.parts?c.content.parts.filter(x=>x.text&&!x.thought).map(x=>x.text).join(''):'';
+  if(!t)throw new Error('AIから回答が返りませんでした');
+  return t;
+}
+const parseJSON=t=>JSON.parse(t.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'').trim());
+const AI_SYS='あなたはボディメイクのパーソナルトレーナーです。ユーザーの記録データ(JSON)だけを根拠に、日本語で具体的に助言します。規則: 1)記録にない事実を作らない。データが足りない項目は「データ不足」と書く。2)体重・食事など記録された値は【実測】、体組成計の体脂肪率・筋肉量・消費カロリー・estimatedの食品は【推定】と区別して書く。3)根拠のない断定をしない。数値を引用して理由を示す。4)医療的な診断はしない。痛みや体調不良には無理をしない方向で答える。5)Markdown記法(#や*)は使わず、見出しは「■」、箇条書きは「・」で書く。6)全体で600字以内。';
+function aiData(d){
+  const days=[];
+  for(let i=13;i>=0;i--){const x=addDays(d,-i),t=totals(x),b=S.body.filter(r=>r.date===x).pop();
+    const o={date:x,weekday:WD[toDate(x).getDay()],dayType:dayType(x)==='train'?'筋トレ日':'オフ日',target:tgt(x),
+      intake:t.n?{kcal:Math.round(t.kcal),p:r1(t.p),f:r1(t.f),c:r1(t.c),estimatedItems:t.est}:null,
+      body:b?{weightKg:b.weight,fatPct:b.fat,muscleKg:b.muscle,waistCm:b.waist,bmr:b.bmr}:null,
+      workouts:S.workouts.filter(w=>w.date===x).map(w=>({exercise:exName(w),kg:w.weight,reps:w.reps,sets:w.sets,memo:w.memo||undefined})),
+      diary:logOf(x).map(l=>(l.time||'')+' '+l.text),waterMl:Dr(x).water||0,tasksDone:tasks(x).filter(k=>k.done).length+'/6'};
+    if(i<2)o.meals=(S.meals[x]||[]).map(m=>({slot:(SLOTS.find(k=>k.id===m.slot)||{}).n,name:m.name,amount:m.amount,kcal:m.kcal,p:m.p,f:m.f,c:m.c,estimated:!!m.est}));
+    days.push(o)}
+  const tm=addDays(d,1),mn=menuFor(tm),st=S.settings;
+  return {analysisDate:d,profile:{heightCm:st.height,goalWeightKg:st.goalWeight,goalFatPct:st.goalFat,shoulderPain:st.shoulderPain,waterGoalMl:st.waterGoal},
+    tomorrow:{date:tm,dayType:dayType(tm)==='train'?'筋トレ日':'オフ日',target:tgt(tm),menu:mn?{name:mn.name,exercises:mn.ex.map(exById).filter(Boolean).map(e=>e.name+(e.shoulder?'(肩を使う)':''))}:null},
+    registeredFoods:S.foods.slice(0,40).map(f=>({name:f.name,amount:f.amount,kcal:f.kcal,p:f.p,f:f.f,c:f.c})),last14days:days};
+}
+const aiBox=(r)=>`<p style="white-space:pre-wrap;margin:0;font-size:14px">${esc(r.text)}</p><p class="note">AI生成（${esc(r.model||'Gemini')}・${new Date(r.at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}）。内容は必ず自分の記録と照らして確認してください。</p>`;
 
 /* ---------- シート・トースト ---------- */
 function openSheet(title,html){$('#shT').textContent=title;$('#shB').innerHTML=html;$('#ov').hidden=false}
@@ -560,7 +612,7 @@ function download(name,text,type){
   const u=URL.createObjectURL(new Blob([text],{type})),a=document.createElement('a');
   a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),3000);
 }
-function readImg(file){return new Promise(res=>{const fr=new FileReader();fr.onerror=()=>res(null);fr.onload=()=>{const im=new Image();im.onerror=()=>res(null);im.onload=()=>{const s=Math.min(1,360/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.6))};im.src=fr.result};fr.readAsDataURL(file)})}
+function readImg(file,max,q){max=max||360;q=q||.6;return new Promise(res=>{const fr=new FileReader();fr.onerror=()=>res(null);fr.onload=()=>{const im=new Image();im.onerror=()=>res(null);im.onload=()=>{const s=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',q))};im.src=fr.result};fr.readAsDataURL(file)})}
 const csvRow=a=>a.map(v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',');
 
 /* ---------- 操作 ---------- */
@@ -596,7 +648,7 @@ const ACT={
   mealAdd(d){ctx={date:cur,slot:d.slot,id:null,img:null};mealSheet({slot:d.slot})},
   mealEdit(d){const m=(S.meals[cur]||[]).find(x=>x.id===d.id);if(!m)return;ctx={date:cur,slot:m.slot,id:m.id,img:m.img||null};mealSheet(m)},
   pickFood(d){const f=S.foods.find(x=>x.id===d.id);if(!f)return;[['m_name','name'],['m_amount','amount'],['m_kcal','kcal'],['m_p','p'],['m_f','f'],['m_c','c']].forEach(a=>{$('#'+a[0]).value=f[a[1]]==null?'':f[a[1]]});$('#m_est').checked=!!f.est;toast('値を入力しました。数量を確認して保存してください')},
-  imgClear(){ctx.img=null;$('#m_prev').innerHTML='';const i=$('#m_img');if(i)i.value=''},
+  imgClear(){ctx.img=null;ctx.imgBig=null;$('#m_prev').innerHTML='';const i=$('#m_img');if(i)i.value=''},
   mealSave(){
     const name=val('m_name').trim();if(!name){toast('食品名を入れてください');return}
     let kcal=num(val('m_kcal')),p=num(val('m_p'))||0,f=num(val('m_f'))||0,c=num(val('m_c'))||0,calc=false;
@@ -647,8 +699,25 @@ const ACT={
     if(ctx.id){const e=exById(ctx.id);e.name=n;e.shoulder=chk('ex_sh');S.workouts.forEach(w=>{if(w.exId===e.id)w.name=n})}else S.exercises.push({id:uid(),name:n,shoulder:chk('ex_sh')});
     save();closeSheet();render()},
   exDel(){ask('この種目を削除しますか？過去の記録は残ります。','削除する',()=>{const id=ctx.id;S.exercises=S.exercises.filter(x=>x.id!==id);S.menus.forEach(m=>{m.ex=m.ex.filter(x=>x!==id)});save();render()})},
+  /* AI */
+  aiTest(){const m=$('#ai_test');if(m)m.textContent='接続を確認中…';
+    return gemini([{text:'「接続OK」とだけ返してください。'}]).then(()=>{const e=$('#ai_test');if(e)e.textContent='接続できました（'+S.settings.ai.model+'）';toast('接続できました')}).catch(e=>{const x=$('#ai_test');if(x)x.textContent='接続できませんでした：'+e.message})},
+  aiClear(){ask('保存してあるAPIキーをこの端末から消しますか？','消す',()=>{S.settings.ai.key='';save();render();toast('キーを消しました')})},
+  aiAdvice(){if(aiBusy)return;const d=cur;aiBusy='advice';aiErr='';render();
+    return gemini([{text:'次の記録を分析してください。出力は「■今日の食事」「■明日の食事提案」「■トレーニングの調整」「■体重・体組成の傾向」「■睡眠・活動」「■次の一手（1つだけ）」の順。\n'+JSON.stringify(aiData(d))}],AI_SYS)
+      .then(t=>{S.ai.advice[d]={text:t.trim(),at:Date.now(),model:S.settings.ai.model};save()}).catch(e=>{aiErr=e.message}).then(()=>{aiBusy='';render()})},
+  aiGoals(){if(aiBusy)return;const m=monday(cur),a=weekStats(m),b=weekStats(addDays(m,-7));aiBusy='goals';aiErr='';render();
+    return gemini([{text:'次の週間集計(thisWeek)と前週(lastWeek)から、翌週の改善目標をちょうど3つ出してください。各目標は数値を含む1文と、その根拠1文。出力は「1. 」「2. 」「3. 」で始める3項目だけ。\n'+JSON.stringify({thisWeek:a,lastWeek:b,targets:S.settings.targets,goalWeightKg:S.settings.goalWeight,goalFatPct:S.settings.goalFat})}],AI_SYS)
+      .then(t=>{S.ai.goals[m]={text:t.trim(),at:Date.now(),model:S.settings.ai.model};save()}).catch(e=>{aiErr=e.message}).then(()=>{aiBusy='';render()})},
+  aiMeal(){const src=ctx.imgBig||ctx.img,msg=$('#ai_msg');if(!src){toast('先に写真を選んでください');return}
+    if(aiBusy)return;aiBusy='meal';if(msg)msg.textContent='AIが写真を見ています…（10〜30秒ほど）';
+    return gemini([{text:'この食事写真に写っている料理・食品の栄養を推定してください。複数ある場合は合計。JSONだけを返す: {"name":"料理名(日本語)","amount":"見た目の量(例: 1人前、約300g)","kcal":数値,"p":たんぱく質g,"f":脂質g,"c":炭水化物g,"note":"推定の前提を1文"}。食べ物が写っていなければ {"error":"理由"}。'},{inlineData:{mimeType:'image/jpeg',data:src.split(',')[1]}}],null,true)
+      .then(t=>{const o=parseJSON(t);const e=$('#ai_msg');if(o.error){if(e)e.textContent='推定できませんでした：'+o.error;return}
+        if(!$('#m_name'))return;[['m_name',o.name],['m_amount',o.amount],['m_kcal',o.kcal],['m_p',o.p],['m_f',o.f],['m_c',o.c]].forEach(a=>{if(a[1]!=null)$('#'+a[0]).value=a[1]});
+        $('#m_est').checked=true;if(e)e.textContent='AIの推定値を入力しました（推定）。'+(o.note||'')+' 確認して直してから保存してください。'})
+      .catch(e=>{const x=$('#ai_msg');if(x)x.textContent='推定に失敗しました：'+e.message}).then(()=>{aiBusy=''})},
   /* データ */
-  backup(){download(`bodycontrol-backup-${today()}.json`,JSON.stringify(S,null,1),'application/json');toast('バックアップを書き出しました')},
+  backup(){const c=JSON.parse(JSON.stringify(S));c.settings.ai.key='';download(`bodycontrol-backup-${today()}.json`,JSON.stringify(c,null,1),'application/json');toast('バックアップを書き出しました')},
   csv(d){
     let rows;
     if(d.k==='body')rows=[['日付','時刻','体重kg','体脂肪率%','筋肉量kg','基礎代謝kcal','ウエストcm']].concat(bodySorted().map(r=>[r.date,r.time,r.weight,r.fat,r.muscle,r.bmr,r.waist]));
@@ -675,6 +744,8 @@ function wSheet(name,w,p){
 }
 const CHG={
   cur(el){if(el.value){cur=el.value;render()}},
+  aiKey(el){S.settings.ai.key=el.value.trim();save();render();toast(S.settings.ai.key?'キーを保存しました':'キーを消しました')},
+  aiModel(el){S.settings.ai.model=el.value.trim()||'gemini-3.8-flash';save();render()},
   shoulder(el){S.settings.shoulderPain=el.checked;save();render()},
   dayMenu(el){Dw(cur).menuId=el.value;save();render()},
   histEx(el){histEx=el.value;render()},
@@ -683,11 +754,11 @@ const CHG={
     const ks=el.dataset.path.split('.');let o=S.settings;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=n;save();toast('保存しました')},
   weekType(el){const w=S.settings.week[+el.dataset.i];w.type=el.value;if(w.type==='train'&&!w.menuId)w.menuId=S.menus[0]?S.menus[0].id:null;save();render()},
   weekMenu(el){S.settings.week[+el.dataset.i].menuId=el.value;save();render()},
-  mealImg(el){const f=el.files&&el.files[0];if(!f)return;readImg(f).then(u=>{if(!u){toast('画像を読み込めませんでした');return}ctx.img=u;const p=$('#m_prev');if(p)p.innerHTML=`<img src="${u}" alt="" style="width:96px;border-radius:12px"> <button class="btn sm" data-act="imgClear">写真を外す</button>`})},
+  mealImg(el){const f=el.files&&el.files[0];if(!f)return;readImg(f,1024,.8).then(b=>{ctx.imgBig=b});readImg(f).then(u=>{if(!u){toast('画像を読み込めませんでした');return}ctx.img=u;const p=$('#m_prev');if(p)p.innerHTML=`<img src="${u}" alt="" style="width:96px;border-radius:12px"> <button class="btn sm" data-act="imgClear">写真を外す</button>`})},
   restore(el){const f=el.files&&el.files[0];if(!f)return;const fr=new FileReader();
     fr.onload=()=>{let o;try{o=JSON.parse(fr.result)}catch(e){toast('JSONとして読み込めませんでした');return}
       if(!o||typeof o!=='object'||!o.settings||!Array.isArray(o.body)){toast('BODY CONTROLのバックアップではありません');return}
-      ask('今の記録をすべて、このバックアップの内容で置き換えます。よろしいですか？','置き換える',()=>{S=migrate(o);save();render();toast('復元しました')})};
+      ask('今の記録をすべて、このバックアップの内容で置き換えます。よろしいですか？','置き換える',()=>{const k=S.settings.ai.key;S=migrate(o);if(!S.settings.ai.key)S.settings.ai.key=k;save();render();toast('復元しました')})};
     fr.readAsText(f);el.value=''}
 };
 document.addEventListener('click',e=>{
