@@ -153,7 +153,7 @@ nav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;st
 <div id="toast" hidden></div>
 <script>
 'use strict';
-const VERSION='1.2.1', KEY='bodycontrol.v1';
+const VERSION='1.3.0', KEY='bodycontrol.v1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -185,7 +185,7 @@ function defaults(){
     ['懸垂',1],['ダンベルカール',0],['ハンマーカール',0],['トライセプスプレスダウン',0]].map((a,i)=>({id:'e'+i,name:a[0],shoulder:!!a[1]}));
   const now=new Date();
   return {v:1,
-    settings:{ai:{key:'',model:'gemini-3.8-flash'},height:166,goalWeight:60,goalFat:10,waterGoal:2000,factorTrain:1.6,factorOff:1.45,shoulderPain:false,
+    settings:{ai:{key:'',model:'gemini-3.8-flash'},auto:{on:false,pace:0.4,goalDate:'',protPerKg:2.1,fatPct:25},height:166,goalWeight:60,goalFat:10,waterGoal:2000,factorTrain:1.6,factorOff:1.45,shoulderPain:false,
       targets:{train:{kcal:1900,p:145,f:55,c:206},off:{kcal:1800,p:145,f:60,c:176}},
       week:[{type:'off',menuId:null},{type:'train',menuId:'m1'},{type:'off',menuId:null},{type:'train',menuId:'m2'},{type:'off',menuId:null},{type:'train',menuId:'m1'},{type:'train',menuId:'m3'}]},
     exercises:ex,
@@ -204,6 +204,7 @@ function migrate(o){
   s.targets={train:Object.assign({},d.settings.targets.train,(o.settings&&o.settings.targets&&o.settings.targets.train)||{}),off:Object.assign({},d.settings.targets.off,(o.settings&&o.settings.targets&&o.settings.targets.off)||{})};
   if(!Array.isArray(s.week)||s.week.length!==7)s.week=d.settings.week;
   s.ai=Object.assign({},d.settings.ai,(o.settings&&o.settings.ai)||{});
+  s.auto=Object.assign({},d.settings.auto,(o.settings&&o.settings.auto)||{});
   o.settings=s;
   ['exercises','menus','body','foods','workouts'].forEach(k=>{if(!Array.isArray(o[k]))o[k]=d[k]});
   if(!o.meals||typeof o.meals!=='object')o.meals={};
@@ -220,7 +221,36 @@ function save(){
 const Dr=d=>S.days[d]||{habits:{},water:0};
 const Dw=d=>S.days[d]||(S.days[d]={habits:{},water:0});
 const dayType=d=>(S.days[d]&&S.days[d].type)||S.settings.week[toDate(d).getDay()].type;
-const tgt=d=>S.settings.targets[dayType(d)];
+const KCAL_PER_KG=7200;
+function autoCalc(type,d){
+  const st=S.settings,a=st.auto,w=latest('weight',d),bmr=latest('bmr',d);
+  if(!w||!bmr)return null;
+  const tdee=bmr*(type==='train'?st.factorTrain:st.factorOff),remain=w-st.goalWeight;
+  let pace=a.pace||0,src='pace',capped=false,floored=false;
+  if(a.goalDate){const wk=(toDate(a.goalDate)-toDate(d))/864e5/7;if(wk>0){pace=remain/wk;src='date'}}
+  if(remain<=0){pace=0;src='done'}
+  if(pace<0)pace=0;
+  const cap=w*0.01;if(pace>cap){pace=cap;capped=true}
+  const deficit=pace*KCAL_PER_KG/7;
+  let kcal=tdee-deficit;if(kcal<bmr){kcal=bmr;floored=true}
+  kcal=Math.round(kcal/10)*10;
+  const p=Math.round(w*(a.protPerKg||0)),f=Math.round(kcal*(a.fatPct||0)/100/9),c=Math.max(0,Math.round((kcal-p*4-f*9)/4));
+  return {kcal,p,f,c,basis:{w,bmr,tdee,pace,deficit,src,capped,floored}};
+}
+const tgtType=(type,d)=>(S.settings.auto.on&&autoCalc(type,d))||S.settings.targets[type];
+const tgt=d=>tgtType(dayType(d),d);
+function autoPreview(){
+  const d=today(),t=autoCalc('train',d),o=autoCalc('off',d),a=S.settings.auto;
+  if(!t)return '<p class="empty">体重と基礎代謝の測定記録があると計算できます。</p>';
+  const b=t.basis,row=(n,x,m)=>`<div class="kv"><span>${n}</span><b>${kc(x.kcal)}kcal<em>P${x.p} F${x.f} C${x.c}g</em></b></div><p class="note" style="margin:0 0 6px">${S.settings.auto.on?'':`今の手入力値：${kc(m.kcal)}kcal・P${m.p} F${m.f} C${m.c}g`}</p>`;
+  const weeks=b.pace>0?(b.w-S.settings.goalWeight)/b.pace:null;
+  return row('筋トレ日',t,S.settings.targets.train)+row('オフ日',o,S.settings.targets.off)+
+    `<p class="note">計算の根拠：最新の体重 ${b.w}kg・基礎代謝 ${kc(b.bmr)}kcal。推定消費（基礎代謝×活動係数）は筋トレ日 ${kc(t.basis.tdee)}kcal／オフ日 ${kc(o.basis.tdee)}kcal。そこから1日 ${kc(b.deficit)}kcal を引いています（週 ${r1(b.pace*100)/100}kg 減のペース${b.src==='date'?'・目標日から逆算':''}、体脂肪1kg＝約${kc(KCAL_PER_KG)}kcalとして計算）。たんぱく質＝体重×${a.protPerKg}g、脂質＝カロリーの${a.fatPct}%、残りが炭水化物。</p>
+    ${b.src==='done'?'<p class="note">目標体重に到達しているので、維持カロリー（差し引きなし）で計算しています。</p>':''}
+    ${b.capped?'<p class="note" style="color:var(--amber)">目標日から逆算したペースが週に体重の1%を超えるため、1%で頭打ちにしています。この日付には間に合わない計算です。</p>':''}
+    ${t.basis.floored||o.basis.floored?'<p class="note" style="color:var(--amber)">計算結果が基礎代謝を下回る日は、基礎代謝の値で下げ止めています。</p>':''}
+    ${weeks&&b.src!=='date'?`<p class="note">このペースだと目標 ${S.settings.goalWeight}kg まで約${Math.ceil(weeks)}週（${fmtDate(addDays(d,Math.ceil(weeks*7)))}ごろ）。体重は推定どおりに減るとは限りません。</p>`:''}`;
+}
 function menuFor(d){
   if(dayType(d)!=='train')return null;
   const id=(S.days[d]&&S.days[d].menuId)||S.settings.week[toDate(d).getDay()].menuId;
@@ -441,12 +471,12 @@ function weekStats(mon){
     habit:days.length?done/(days.length*6)*100:null,weighDays:days.filter(d=>S.body.some(b=>b.date===d)).length,lifts};
 }
 function weekGoals(a){
-  const g=[],tp=S.settings.targets.train.p;
+  const g=[],tp=tgtType('train',a.mon).p;
   if(a.n<a.days||!a.n)g.push(`食事記録を毎日つける（今週 ${a.n}/${a.days||7}日）`);
   if(a.avg&&a.avg.p<tp*.9)g.push(`たんぱく質を平均 ${Math.round(a.avg.p)}g → ${tp}g に近づける`);
   if(a.sess<a.planned)g.push(`筋トレを予定どおり週${a.planned}回こなす（今週 ${a.sess}回）`);
   if(a.weighDays<a.days||!a.weighDays)g.push(`毎朝の体重測定を続ける（今週 ${a.weighDays}/${a.days||7}日）`);
-  if(a.avg&&a.avg.kcal>(S.settings.targets.train.kcal+S.settings.targets.off.kcal)/2*1.05)g.push(`平均摂取カロリーを目標範囲に収める（今週 平均${kc(a.avg.kcal)}kcal）`);
+  if(a.avg&&a.avg.kcal>(tgtType('train',a.mon).kcal+tgtType('off',a.mon).kcal)/2*1.05)g.push(`平均摂取カロリーを目標範囲に収める（今週 平均${kc(a.avg.kcal)}kcal）`);
   if(a.habit!=null&&a.habit<80)g.push(`習慣タスクの達成率を80%以上に（今週 ${Math.round(a.habit)}%）`);
   ['今週のペースをそのまま維持する','就寝時間を22時までに収める','水分を目標量まで飲む'].forEach(x=>{if(g.length<3)g.push(x)});
   return g.slice(0,3);
@@ -542,7 +572,14 @@ VIEW.settings=()=>{
   return `
   <section class="card"><div class="h">身体・目標</div>
     ${setRow('身長 cm','height',s.height)}${setRow('目標体重 kg','goalWeight',s.goalWeight)}${setRow('目標体脂肪率 %','goalFat',s.goalFat)}${setRow('水分の目標 ml','waterGoal',s.waterGoal)}</section>
-  ${[['train','筋トレ日の目標'],['off','オフ日の目標']].map(a=>`<section class="card"><div class="h">${a[1]}</div>${setRow('カロリー kcal',`targets.${a[0]}.kcal`,s.targets[a[0]].kcal)}${setRow('たんぱく質 g',`targets.${a[0]}.p`,s.targets[a[0]].p)}${setRow('脂質 g',`targets.${a[0]}.f`,s.targets[a[0]].f)}${setRow('炭水化物 g',`targets.${a[0]}.c`,s.targets[a[0]].c)}</section>`).join('')}
+  <section class="card"><div class="h">カロリー・PFCの自動計算<span class="tag ${s.auto.on?'up':''}">${s.auto.on?'ON':'OFF'}</span></div>
+    <label class="ck"><input type="checkbox" id="auto_on" data-chg="autoOn" ${s.auto.on?'checked':''}>体重と目標から自動で計算した値を使う</label>
+    ${setRow('減量ペース kg/週','auto.pace',s.auto.pace)}
+    <div class="setrow"><label for="auto_date">目標日（入れるとペースを逆算）</label><input id="auto_date" type="date" data-chg="autoDate" value="${esc(s.auto.goalDate)}" style="width:150px"></div>
+    ${setRow('たんぱく質 g/体重1kg','auto.protPerKg',s.auto.protPerKg)}${setRow('脂質の割合 %','auto.fatPct',s.auto.fatPct)}
+    <div id="autoPrev" style="margin-top:10px">${autoPreview()}</div>
+    <p class="note">ONにすると、体重を記録するたび・目標や係数を変えるたびに目標値が自動で更新されます。OFFのあいだは下の手入力の値を使います。</p></section>
+  ${[['train','筋トレ日の目標（手入力）'],['off','オフ日の目標（手入力）']].map(a=>`<section class="card"><div class="h">${a[1]}${s.auto.on?'<span class="tag">自動計算ON中は不使用</span>':''}</div>${setRow('カロリー kcal',`targets.${a[0]}.kcal`,s.targets[a[0]].kcal)}${setRow('たんぱく質 g',`targets.${a[0]}.p`,s.targets[a[0]].p)}${setRow('脂質 g',`targets.${a[0]}.f`,s.targets[a[0]].f)}${setRow('炭水化物 g',`targets.${a[0]}.c`,s.targets[a[0]].c)}</section>`).join('')}
   <section class="card"><div class="h">週間スケジュール</div>${[1,2,3,4,5,6,0].map(i=>`<div class="setrow"><label>${WD[i]}曜日</label><select data-chg="weekType" data-i="${i}" aria-label="${WD[i]}曜日の区分"><option value="train" ${s.week[i].type==='train'?'selected':''}>筋トレ日</option><option value="off" ${s.week[i].type==='off'?'selected':''}>オフ日</option></select>${s.week[i].type==='train'?`<select data-chg="weekMenu" data-i="${i}" aria-label="${WD[i]}曜日のメニュー">${S.menus.map(m=>`<option value="${m.id}" ${s.week[i].menuId===m.id?'selected':''}>${esc(m.name)}</option>`).join('')}</select>`:''}</div>`).join('')}<p class="note">曜日の区分に合わせて、その日のPFC目標が自動で切り替わります。</p></section>
   <section class="card"><div class="h">消費カロリーの推定</div>${setRow('活動係数（筋トレ日）','factorTrain',s.factorTrain)}${setRow('活動係数（オフ日）','factorOff',s.factorOff)}<p class="note">推定消費＝最新の基礎代謝 × 活動係数。実測ではなく目安です。</p></section>
   <section class="card"><div class="h">AI接続（Gemini）<span class="tag ${aiOn()?'up':'est'}">${aiOn()?'キー登録済み':'未接続'}</span></div>
@@ -706,7 +743,7 @@ const ACT={
     return gemini([{text:'次の記録を分析してください。出力は「■今日の食事」「■明日の食事提案」「■トレーニングの調整」「■体重・体組成の傾向」「■睡眠・活動」「■次の一手（1つだけ）」の順。\n'+JSON.stringify(aiData(d))}],AI_SYS)
       .then(t=>{S.ai.advice[d]={text:t.trim(),at:Date.now(),model:S.settings.ai.model};save()}).catch(e=>{aiErr=e.message}).then(()=>{aiBusy='';render()})},
   aiGoals(){if(aiBusy)return;const m=monday(cur),a=weekStats(m),b=weekStats(addDays(m,-7));aiBusy='goals';aiErr='';render();
-    return gemini([{text:'次の週間集計(thisWeek)と前週(lastWeek)から、翌週の改善目標をちょうど3つ出してください。各目標は数値を含む1文と、その根拠1文。出力は「1. 」「2. 」「3. 」で始める3項目だけ。\n'+JSON.stringify({thisWeek:a,lastWeek:b,targets:S.settings.targets,goalWeightKg:S.settings.goalWeight,goalFatPct:S.settings.goalFat})}],AI_SYS)
+    return gemini([{text:'次の週間集計(thisWeek)と前週(lastWeek)から、翌週の改善目標をちょうど3つ出してください。各目標は数値を含む1文と、その根拠1文。出力は「1. 」「2. 」「3. 」で始める3項目だけ。\n'+JSON.stringify({thisWeek:a,lastWeek:b,targets:{train:tgtType('train',cur),off:tgtType('off',cur)},goalWeightKg:S.settings.goalWeight,goalFatPct:S.settings.goalFat})}],AI_SYS)
       .then(t=>{S.ai.goals[m]={text:t.trim(),at:Date.now(),model:S.settings.ai.model};save()}).catch(e=>{aiErr=e.message}).then(()=>{aiBusy='';render()})},
   aiMeal(){const src=ctx.imgBig||ctx.img,msg=$('#ai_msg');if(!src){toast('先に写真を選んでください');return}
     if(aiBusy)return;aiBusy='meal';if(msg)msg.textContent='AIが写真を見ています…（10〜30秒ほど）';
@@ -745,12 +782,14 @@ const CHG={
   cur(el){if(el.value){cur=el.value;render()}},
   aiKey(el){S.settings.ai.key=el.value.trim();save();render();toast(S.settings.ai.key?'キーを保存しました':'キーを消しました')},
   aiModel(el){S.settings.ai.model=el.value.trim()||'gemini-3.8-flash';save();render()},
+  autoOn(el){S.settings.auto.on=el.checked;save();render();toast(el.checked?'自動計算をONにしました':'手入力の目標に戻しました')},
+  autoDate(el){S.settings.auto.goalDate=el.value;save();const pv=$('#autoPrev');if(pv)pv.innerHTML=autoPreview()},
   shoulder(el){S.settings.shoulderPain=el.checked;save();render()},
   dayMenu(el){Dw(cur).menuId=el.value;save();render()},
   histEx(el){histEx=el.value;render()},
   menuExAdd(el){const m=S.menus.find(x=>x.id===el.dataset.id);if(m&&el.value&&!m.ex.includes(el.value)){m.ex.push(el.value);save();render()}},
   set(el){const n=num(el.value);if(n==null||n<0){toast('数値を入れてください');render();return}
-    const ks=el.dataset.path.split('.');let o=S.settings;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=n;save();toast('保存しました')},
+    const ks=el.dataset.path.split('.');let o=S.settings;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=n;save();const pv=$('#autoPrev');if(pv)pv.innerHTML=autoPreview();toast('保存しました')},
   weekType(el){const w=S.settings.week[+el.dataset.i];w.type=el.value;if(w.type==='train'&&!w.menuId)w.menuId=S.menus[0]?S.menus[0].id:null;save();render()},
   weekMenu(el){S.settings.week[+el.dataset.i].menuId=el.value;save();render()},
   mealImg(el){const f=el.files&&el.files[0];if(!f)return;readImg(f,1024,.8).then(b=>{ctx.imgBig=b});readImg(f).then(u=>{if(!u){toast('画像を読み込めませんでした');return}ctx.img=u;const p=$('#m_prev');if(p)p.innerHTML=`<img src="${u}" alt="" style="width:96px;border-radius:12px"> <button class="btn sm" data-act="imgClear">写真を外す</button>`})},
