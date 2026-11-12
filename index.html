@@ -153,7 +153,7 @@ nav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;st
 <div id="toast" hidden></div>
 <script>
 'use strict';
-const VERSION='1.0.0', KEY='bodycontrol.v1';
+const VERSION='1.1.0', KEY='bodycontrol.v1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -207,6 +207,7 @@ function migrate(o){
   ['exercises','menus','body','foods','workouts'].forEach(k=>{if(!Array.isArray(o[k]))o[k]=d[k]});
   if(!o.meals||typeof o.meals!=='object')o.meals={};
   if(!o.days||typeof o.days!=='object')o.days={};
+  Object.keys(o.days).forEach(d=>{const x=o.days[d];if(!x||!x.habits)return;ROUTINE.forEach(r=>{const h=x.habits[r.id];if(h&&h.actual){(x.log||(x.log=[])).push({id:uid(),time:h.actual,text:r.label});delete h.actual}})});
   o.v=1;return o;
 }
 let S=load();
@@ -229,15 +230,19 @@ function latest(field,d){const a=bodySorted().filter(r=>r.date<=d&&r[field]!=nul
 function daily(field){const m={};bodySorted().forEach(r=>{if(r[field]!=null)m[r.date]=r[field]});return m}
 function avgRange(field,from,to,m){m=m||daily(field);const v=Object.keys(m).filter(d=>d>=from&&d<=to).map(d=>m[d]);return v.length?{avg:v.reduce((a,b)=>a+b,0)/v.length,n:v.length}:null}
 const habit=(d,id)=>Dr(d).habits[id]||{};
+const QUICK=['起床','筋トレ','プロテイン','ウォーキング','出勤','昼食','間食','退勤','夕食','入浴','就寝'];
+const nowHM=()=>{const n=new Date();return pad(n.getHours())+':'+pad(n.getMinutes())};
+const logOf=d=>(Dr(d).log||[]).slice().sort((a,b)=>(a.time||'99')<(b.time||'99')?-1:(a.time||'99')>(b.time||'99')?1:0);
+const logHas=(d,ws)=>(Dr(d).log||[]).some(l=>ws.some(w=>l.text.includes(w)));
 function tasks(d){
   const tr=dayType(d)==='train';
   return [
     {id:'weigh',label:'体重測定',done:S.body.some(b=>b.date===d),auto:'body'},
-    {id:'protein',label:'プロテイン摂取',done:!!habit(d,'protein').done},
-    {id:'train',label:tr?'筋トレ':'休養',done:!!habit(d,'train').done||(tr&&S.workouts.some(w=>w.date===d))},
+    {id:'protein',label:'プロテイン摂取',done:!!habit(d,'protein').done||logHas(d,['プロテイン'])},
+    {id:'train',label:tr?'筋トレ':'休養',done:!!habit(d,'train').done||(tr&&S.workouts.some(w=>w.date===d))||logHas(d,tr?['筋トレ']:['休養'])},
     {id:'meal',label:'食事記録',done:(S.meals[d]||[]).length>0,auto:'meals'},
-    {id:'walk',label:'ウォーキング',done:!!habit(d,'walk').done},
-    {id:'sleep',label:'就寝時間',done:!!habit(d,'sleep').done}];
+    {id:'walk',label:'ウォーキング',done:!!habit(d,'walk').done||logHas(d,['ウォーキング','散歩'])},
+    {id:'sleep',label:'就寝時間',done:!!habit(d,'sleep').done||logHas(d,['就寝'])}];
 }
 const exById=id=>S.exercises.find(e=>e.id===id);
 const exName=w=>{const e=exById(w.exId);return e?e.name:(w.name||'削除済みの種目')};
@@ -282,7 +287,12 @@ VIEW.home=()=>{
     <div class="btns" style="margin-top:12px"><button class="btn sm" data-act="water" data-n="200">＋200ml</button><button class="btn sm" data-act="water" data-n="500">＋500ml</button><button class="btn sm" data-act="water" data-n="-200">−200ml</button></div>
     <div class="kv" style="margin-top:12px;border-top:1px solid var(--line)"><span>運動</span><b style="font-family:var(--body);font-size:14px">${tr?(wk?`${wk}件 記録済み`:'未実施'):(habit(cur,'train').done?'休養 済み':'オフ日')}</b></div></section>
   <section class="card"><div class="h">本日のタスク</div><div class="list">${tk.map(x=>`<button class="item" data-act="task" data-id="${x.id}"><span class="check ${x.done?'on':''}">✓</span><span class="g"><b>${x.label}</b>${x.auto?`<small>${x.auto==='body'?'測定を記録すると完了':'食事を1件記録すると完了'}</small>`:''}</span></button>`).join('')}</div></section>
-  <section class="card"><div class="h">1日の流れ</div><div class="list">${ROUTINE.map(r=>{const hb=habit(cur,r.id);return `<div class="item"><button class="check ${hb.done?'on':''}" data-act="habit" data-id="${r.id}" aria-label="${r.label}を完了にする">✓</button><span class="time">${r.time}</span><span class="g"><b>${r.id==='train'&&!tr?'休養':r.label}</b></span><input type="time" id="act_${r.id}" data-chg="actual" data-id="${r.id}" value="${esc(hb.actual||'')}" aria-label="${r.label}の実際の時刻"></div>`}).join('')}</div><p class="note">右の欄には実際の時刻を入れられます（残業で遅れた日など）。</p></section>`;
+  <section class="card"><div class="h">今日の記録（日記）<span>${logOf(cur).length}件</span></div>
+    <div style="display:grid;grid-template-columns:104px 1fr;gap:8px"><input class="inp" type="time" id="lg_time" value="${cur===today()?nowHM():''}" aria-label="時刻"><input class="inp" type="text" id="lg_text" placeholder="やったこと" aria-label="やったこと" enterkeyhint="done"></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">${QUICK.map(q=>`<button class="chip" data-act="logQuick" data-t="${q}">${q}</button>`).join('')}</div>
+    <button class="btn pri wide" data-act="logAdd">記録に追加</button>
+    ${logOf(cur).length?`<div class="list" style="margin-top:12px">${logOf(cur).map(l=>`<button class="item" data-act="logEdit" data-id="${l.id}"><span class="time" style="width:52px;color:var(--accent)">${esc(l.time||'--:--')}</span><span class="g"><b style="font-weight:500">${esc(l.text)}</b></span></button>`).join('')}</div>`:'<p class="empty">まだ記録がありません。時刻とやったことを入れて追加してください。</p>'}
+    <p class="note">時刻の早い順に上から並びます。「プロテイン」「ウォーキング」「就寝」「筋トレ」「休養」を含む記録は、上のタスクも自動で完了になります。</p></section>`;
 };
 
 /* ---------- 食事 ---------- */
@@ -474,11 +484,11 @@ function advise(d){
   S.exercises.forEach(e=>{const r=S.workouts.filter(w=>w.exId===e.id),ds=[...new Set(r.map(w=>w.date))].sort().slice(-3);
     if(ds.length===3){const b=ds.map(x=>bestOf(r.filter(w=>w.date===x)));if(b.every(x=>x.weight===b[0].weight&&x.reps===b[0].reps))stall.push(e.name)}});
   if(stall.length)A.push({tag:'実測',h:'3回連続で記録が同じ種目があります',b:`${stall.join('、')}。重量を据え置いて回数を1回増やすか、セット数で調整する方法があります。`});
-  const sl=[];for(let i=0;i<7;i++){const x=habit(addDays(d,-i),'sleep').actual;if(x)sl.push(x)}
+  const sl=[];for(let i=0;i<7;i++){const x=(Dr(addDays(d,-i)).log||[]).find(l=>l.text.includes('就寝')&&l.time);if(x)sl.push(x.time)}
   if(sl.length){const late=sl.filter(x=>x>'22:00'||x<'04:00').length;A.push({tag:'実測',h:`就寝時刻：直近7日で記録 ${sl.length}日・22時より遅い日 ${late}日`,b:late?'睡眠が短いと回復と食欲の調整に影響しやすいので、就寝目標を守れる日を増やしてください。':'就寝目標を守れています。'})}
-  else A.push({tag:'情報',h:'睡眠は判定できません',b:'「1日の流れ」で就寝の実際の時刻を入れると分析できます。'});
-  let walk=0;for(let i=0;i<7;i++)if(habit(addDays(d,-i),'walk').done)walk++;
-  A.push({tag:'実測',h:`ウォーキング：直近7日で ${walk}日`,b:'歩数の実測データは未接続のため、チェックの回数だけを見ています。'});
+  else A.push({tag:'情報',h:'睡眠は判定できません',b:'ホームの「今日の記録」に「就寝」を時刻つきで入れると分析できます。'});
+  let walk=0;for(let i=0;i<7;i++)if(tasks(addDays(d,-i))[4].done)walk++;
+  A.push({tag:'実測',h:`ウォーキング：直近7日で ${walk}日`,b:'歩数の実測データは未接続のため、タスクの完了日数だけを見ています。'});
   return A;
 }
 VIEW.body=()=>{
@@ -529,7 +539,7 @@ VIEW.settings=()=>{
   <section class="card"><div class="h">消費カロリーの推定</div>${setRow('活動係数（筋トレ日）','factorTrain',s.factorTrain)}${setRow('活動係数（オフ日）','factorOff',s.factorOff)}<p class="note">推定消費＝最新の基礎代謝 × 活動係数。実測ではなく目安です。</p></section>
   <section class="card"><div class="h">データ</div>
     <div class="btns"><button class="btn" data-act="backup">JSONでバックアップ</button><label class="btn" style="cursor:pointer">JSONから復元<input type="file" id="restoreFile" accept="application/json,.json" data-chg="restore" hidden></label></div>
-    <div class="btns" style="margin-top:8px"><button class="btn sm" data-act="csv" data-k="body">体組成CSV</button><button class="btn sm" data-act="csv" data-k="meals">食事CSV</button><button class="btn sm" data-act="csv" data-k="workouts">筋トレCSV</button></div>
+    <div class="btns" style="margin-top:8px"><button class="btn sm" data-act="csv" data-k="body">体組成CSV</button><button class="btn sm" data-act="csv" data-k="meals">食事CSV</button><button class="btn sm" data-act="csv" data-k="workouts">筋トレCSV</button><button class="btn sm" data-act="csv" data-k="log">日記CSV</button></div>
     <button class="btn wide danger" data-act="wipe" style="margin-top:8px">すべてのデータを消して初期状態に戻す</button>
     <p class="note">記録はこの端末のこのブラウザ内に保存されます（使用量 約${Math.max(1,Math.round(size/1024))}KB）。スマホとPCの間で自動同期はしないので、移すときはJSONバックアップを使ってください。</p></section>
   <section class="card"><div class="h">接続状況</div>
@@ -565,6 +575,14 @@ const ACT={
   range(d){range=+d.n;render()},
   water(d){const x=Dw(cur);x.water=Math.max(0,(x.water||0)+(+d.n));save();render()},
   habit(d){const x=Dw(cur),h=x.habits[d.id]||(x.habits[d.id]={});h.done=!h.done;save();render()},
+  logQuick(d){const t=$('#lg_text'),tm=$('#lg_time');t.value=d.t;if(!tm.value)tm.value=nowHM();ACT.logAdd()},
+  logAdd(){const text=val('lg_text').trim();if(!text){toast('やったことを入れてください');return}
+    const x=Dw(cur);(x.log||(x.log=[])).push({id:uid(),time:val('lg_time'),text});save();render();toast('記録しました')},
+  logEdit(d){const l=(Dr(cur).log||[]).find(x=>x.id===d.id);if(!l)return;ctx={id:l.id};
+    openSheet('記録を編集',`${fld('le_time','時刻',l.time,'time')}${fld('le_text','やったこと',l.text)}<div class="btns" style="margin-top:8px"><button class="btn danger" data-act="logDel">削除</button><button class="btn pri" data-act="logSave">保存</button></div>`)},
+  logSave(){const text=val('le_text').trim();if(!text){toast('やったことを入れてください');return}
+    const l=(Dw(cur).log||[]).find(x=>x.id===ctx.id);if(l){l.time=val('le_time');l.text=text}save();closeSheet();render()},
+  logDel(){const x=Dw(cur);x.log=(x.log||[]).filter(l=>l.id!==ctx.id);save();closeSheet();render();toast('削除しました')},
   task(d){
     if(d.id==='weigh'){if(!S.body.some(b=>b.date===cur))ACT.bodyAdd();else{tab='body';subB='log';render()}return}
     if(d.id==='meal'){tab='meals';render();window.scrollTo(0,0);return}
@@ -635,6 +653,7 @@ const ACT={
     let rows;
     if(d.k==='body')rows=[['日付','時刻','体重kg','体脂肪率%','筋肉量kg','基礎代謝kcal','ウエストcm']].concat(bodySorted().map(r=>[r.date,r.time,r.weight,r.fat,r.muscle,r.bmr,r.waist]));
     else if(d.k==='meals'){rows=[['日付','区分','食品名','摂取量','カロリーkcal','たんぱく質g','脂質g','炭水化物g','推定']];Object.keys(S.meals).sort().forEach(dt=>S.meals[dt].forEach(m=>rows.push([dt,(SLOTS.find(s=>s.id===m.slot)||{}).n,m.name,m.amount,m.kcal,m.p,m.f,m.c,m.est?'推定':''])))}
+    else if(d.k==='log'){rows=[['日付','時刻','やったこと']];Object.keys(S.days).sort().forEach(dt=>logOf(dt).forEach(l=>rows.push([dt,l.time,l.text])))}
     else rows=[['日付','種目','重量kg','回数','セット数','メモ']].concat(S.workouts.slice().sort((a,b)=>a.date<b.date?-1:1).map(w=>[w.date,exName(w),w.weight,w.reps,w.sets,w.memo]));
     download(`bodycontrol-${d.k}-${today()}.csv`,'﻿'+rows.map(csvRow).join('\r\n'),'text/csv');toast('CSVを書き出しました');
   },
@@ -656,7 +675,6 @@ function wSheet(name,w,p){
 }
 const CHG={
   cur(el){if(el.value){cur=el.value;render()}},
-  actual(el){const x=Dw(cur),h=x.habits[el.dataset.id]||(x.habits[el.dataset.id]={});h.actual=el.value;if(el.value)h.done=true;save();render()},
   shoulder(el){S.settings.shoulderPain=el.checked;save();render()},
   dayMenu(el){Dw(cur).menuId=el.value;save();render()},
   histEx(el){histEx=el.value;render()},
@@ -679,7 +697,7 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('change',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.chg&&CHG[el.dataset.chg])CHG[el.dataset.chg](el)});
 document.addEventListener('input',e=>{const el=e.target;if(el&&el.dataset&&el.dataset.inp==='fq'){const l=$('#fl');if(l)l.innerHTML=foodPick(el.value)}});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#ov').hidden)closeSheet()});
+document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='lg_text'){e.preventDefault();ACT.logAdd();return}if(e.key==='Escape'&&!$('#ov').hidden)closeSheet()});
 if(!localStorage.getItem(KEY))save();
 render();
 </script>
