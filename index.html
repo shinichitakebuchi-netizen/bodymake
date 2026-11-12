@@ -153,7 +153,7 @@ nav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8;st
 <div id="toast" hidden></div>
 <script>
 'use strict';
-const VERSION='1.2.0', KEY='bodycontrol.v1';
+const VERSION='1.2.1', KEY='bodycontrol.v1';
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -490,7 +490,7 @@ function advise(d){
   if(sl.length){const late=sl.filter(x=>x>'22:00'||x<'04:00').length;A.push({tag:'実測',h:`就寝時刻：直近7日で記録 ${sl.length}日・22時より遅い日 ${late}日`,b:late?'睡眠が短いと回復と食欲の調整に影響しやすいので、就寝目標を守れる日を増やしてください。':'就寝目標を守れています。'})}
   else A.push({tag:'情報',h:'睡眠は判定できません',b:'ホームの「今日の記録」に「就寝」を時刻つきで入れると分析できます。'});
   let walk=0;for(let i=0;i<7;i++)if(tasks(addDays(d,-i))[4].done)walk++;
-  A.push({tag:'実測',h:`ウォーキング：直近7日で ${walk}日`,b:'歩数の実測データは未接続のため、タスクの完了日数だけを見ています。'});
+  A.push({tag:'実測',h:`ウォーキング：直近7日で ${walk}日`,b:'ウォーキングのタスクを完了にした日数です。'});
   return A;
 }
 VIEW.body=()=>{
@@ -559,7 +559,6 @@ VIEW.settings=()=>{
   <section class="card"><div class="h">接続状況</div>
     <div class="kv"><span>AIパーソナルトレーナー</span><b style="font-family:var(--body);font-size:13px;color:var(--${aiOn()?'accent':'amber'})">${aiOn()?'Gemini（キー登録済み）':'未接続（ルール計算で代替）'}</b></div>
     <div class="kv"><span>写真からの栄養推定</span><b style="font-family:var(--body);font-size:13px;color:var(--${aiOn()?'accent':'amber'})">${aiOn()?'Gemini（キー登録済み）':'未接続'}</b></div>
-    <div class="kv"><span>歩数・活動量の連携</span><b style="font-family:var(--body);font-size:13px;color:var(--amber)">未接続</b></div>
     <div class="kv"><span>バージョン</span><b>${VERSION}</b></div></section>`;
 };
 
